@@ -1,11 +1,20 @@
 # CLAUDE.md
 
-GBrain is a personal knowledge brain and GStack mod for agent platforms. Pluggable
-engines: PGLite (embedded Postgres via WASM, zero-config default) or Postgres + pgvector
-+ hybrid search in a managed Supabase instance. `gbrain init` defaults to PGLite;
-suggests Supabase for 1000+ files. GStack teaches agents how to code. GBrain teaches
-agents everything else: brain ops, signal detection, content ingestion, enrichment,
-cron scheduling, reports, identity, and access control.
+kbrain is a personal fork of GBrain — a personal knowledge brain with pluggable engines:
+PGLite (embedded Postgres via WASM, zero-config default) or Postgres + pgvector + hybrid
+search. `gbrain init` defaults to PGLite; suggests Supabase for 1000+ files.
+
+## Fork Context
+
+This is a personal fork. The owner has a separate repo with:
+- A Playwright-based X bookmarks scraper (browser session auth, free, no API key)
+- A compile pipeline that produces Obsidian-ready markdown in `vault/`
+- Obsidian as the human frontend for browsing and reviewing
+
+kbrain extends that pipeline downstream: semantic search, auto-enrichment, cross-linking,
+and agent memory via MCP. See `ROADMAP.md` for the full plan and phased development
+roadmap. The scraper + compile pipeline lives in the other repo; kbrain indexes its
+output via `gbrain import` and `gbrain sync`.
 
 ## Architecture
 
