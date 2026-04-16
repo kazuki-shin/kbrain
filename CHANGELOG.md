@@ -2,6 +2,20 @@
 
 All notable changes to GBrain will be documented in this file.
 
+## [0.14.3] - 2026-04-15
+
+### Added
+
+- **Your brain now understands Obsidian wiki-links.** If your vault uses `[[Page Name]]` or `[[Page Name|alias]]` links (the Obsidian default), `gbrain extract` finally reads them. Before this, the extract pipeline produced zero cross-links for wiki-link-based vaults. Now it builds the full entity graph — author-to-collection, source-to-author, meeting-to-attendee — from your actual vault structure. 608+ links extracted from a real vault on first run.
+
+- **Meeting dates now show up in the timeline.** If a page has `date:` frontmatter and lives in `meetings/` or `gdocs/`, or has `type: meeting/event/call`, it becomes a timeline entry automatically. No special formatting required. Granola meetings, Google Doc board notes, and event logs all land in the timeline on the next autopilot cycle.
+
+- **OpenClaw and Hermes setup guides.** `docs/mcp/OPENCLAW.md` and `docs/mcp/HERMES.md` document how to register kbrain as an MCP backend for each agent platform, including brain-first lookup wiring and signal-detector activation.
+
+### Fixed
+
+- **Granola attendee objects no longer break link extraction.** Meetings synced from Granola include `attendees: [{name: "...", company: "..."}]` objects in frontmatter. The extractor previously skipped these silently. Now it reads the `name` field and generates the correct `people/slug` link.
+
 ## [0.14.2] - 2026-04-15
 
 ### Added

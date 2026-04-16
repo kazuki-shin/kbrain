@@ -60,6 +60,8 @@ if compromised. Tokens are stored SHA-256 hashed in your database.
 
 ### 3. Connect your AI client
 
+- **OpenClaw:** [setup guide](OPENCLAW.md)
+- **Hermes Agent:** [setup guide](HERMES.md)
 - **Claude Code:** [setup guide](CLAUDE_CODE.md)
 - **Claude Desktop:** [setup guide](CLAUDE_DESKTOP.md) (must use GUI, not JSON config)
 - **Claude Cowork:** [setup guide](CLAUDE_COWORK.md)
@@ -75,7 +77,7 @@ bun run src/commands/auth.ts test \
 
 ## Operations
 
-All 30 GBrain operations are available remotely, including `sync_brain` and
+All 32 GBrain operations are available remotely, including `sync_brain` and
 `file_upload` (no timeout limits with self-hosted server).
 
 ## Deployment Options

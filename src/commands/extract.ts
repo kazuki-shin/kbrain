@@ -71,6 +71,39 @@ export function extractMarkdownLinks(content: string): { name: string; relTarget
   return results;
 }
 
+/** Extract Obsidian-style wiki-links: [[Page Name]] or [[Page Name|alias]] */
+export function extractWikiLinks(content: string): { name: string; target: string }[] {
+  const results: { name: string; target: string }[] = [];
+  const pattern = /\[\[([^\]|]+?)(?:\|([^\]]+))?\]\]/g;
+  let match;
+  while ((match = pattern.exec(content)) !== null) {
+    const target = match[1].trim();
+    const name = match[2]?.trim() || target;
+    results.push({ name, target });
+  }
+  return results;
+}
+
+/**
+ * Build a name→slug map from all vault files for wiki-link resolution.
+ * Key = filename without extension (e.g. "Author - _avichawla").
+ * Value = array of matching slugs (to detect ambiguity).
+ */
+export function buildNameToSlugMap(files: { relPath: string }[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const { relPath } of files) {
+    const slug = relPath.replace(/\.md$/, '');
+    const basename = slug.split('/').pop() ?? slug;
+    const existing = map.get(basename);
+    if (existing) {
+      existing.push(slug);
+    } else {
+      map.set(basename, [slug]);
+    }
+  }
+  return map;
+}
+
 /** Infer link type from directory structure */
 function inferLinkType(fromDir: string, toDir: string, frontmatter?: Record<string, unknown>): string {
   const from = fromDir.split('/')[0];
@@ -85,7 +118,8 @@ function inferLinkType(fromDir: string, toDir: string, frontmatter?: Record<stri
   return 'mention';
 }
 
-/** Extract links from frontmatter fields */
+/** Extract links from frontmatter fields.
+ *  Handles both plain string slugs and {name, company, email} attendee objects. */
 function extractFrontmatterLinks(slug: string, fm: Record<string, unknown>): ExtractedLink[] {
   const links: ExtractedLink[] = [];
   const fieldMap: Record<string, { dir: string; type: string }> = {
@@ -98,10 +132,20 @@ function extractFrontmatterLinks(slug: string, fm: Record<string, unknown>): Ext
   for (const [field, config] of Object.entries(fieldMap)) {
     const value = fm[field];
     if (!value) continue;
-    const slugs = Array.isArray(value) ? value : [value];
-    for (const s of slugs) {
-      if (typeof s !== 'string') continue;
-      const toSlug = `${config.dir}/${s.toLowerCase().replace(/\s+/g, '-')}`;
+    const items = Array.isArray(value) ? value : [value];
+    for (const item of items) {
+      // Handle {name: "...", company: "...", email: "..."} objects (e.g. granola attendees)
+      let nameStr: string;
+      if (typeof item === 'object' && item !== null) {
+        const obj = item as Record<string, unknown>;
+        nameStr = (obj.name as string) || '';
+      } else if (typeof item === 'string') {
+        nameStr = item;
+      } else {
+        continue;
+      }
+      if (!nameStr) continue;
+      const toSlug = `${config.dir}/${nameStr.toLowerCase().replace(/\s+/g, '-')}`;
       links.push({ from_slug: slug, to_slug: toSlug, link_type: config.type, context: `frontmatter.${field}` });
     }
   }
@@ -118,15 +162,19 @@ function parseFrontmatterFromContent(content: string, relPath: string): Record<s
   }
 }
 
-/** Full link extraction from a single markdown file */
+/** Full link extraction from a single markdown file.
+ *  Handles standard markdown links, wiki-links, and frontmatter fields.
+ *  nameToSlug: optional map built by buildNameToSlugMap() for wiki-link resolution. */
 export function extractLinksFromFile(
   content: string, relPath: string, allSlugs: Set<string>,
+  nameToSlug?: Map<string, string[]>,
 ): ExtractedLink[] {
   const links: ExtractedLink[] = [];
   const slug = relPath.replace('.md', '');
   const fileDir = dirname(relPath);
   const fm = parseFrontmatterFromContent(content, relPath);
 
+  // Standard markdown links: [text](path.md)
   for (const { name, relTarget } of extractMarkdownLinks(content)) {
     const resolved = join(fileDir, relTarget).replace('.md', '');
     if (allSlugs.has(resolved)) {
@@ -138,11 +186,68 @@ export function extractLinksFromFile(
     }
   }
 
+  // Wiki-links: [[Page Name|alias]]
+  if (nameToSlug) {
+    for (const { name, target } of extractWikiLinks(content)) {
+      const matches = nameToSlug.get(target);
+      if (!matches || matches.length !== 1) continue; // skip missing or ambiguous
+      const toSlug = matches[0];
+      if (toSlug === slug) continue; // skip self-links
+      links.push({
+        from_slug: slug, to_slug: toSlug,
+        link_type: inferLinkType(fileDir, dirname(toSlug), fm),
+        context: `wiki link: [[${name}]]`,
+      });
+    }
+  }
+
   links.push(...extractFrontmatterLinks(slug, fm));
   return links;
 }
 
 // --- Timeline extraction ---
+
+/**
+ * Extract a timeline entry from frontmatter date + title.
+ * Only fires for pages that are explicitly dated events:
+ *   - Has both `date:` (YYYY-MM-DD) and `title:` (non-empty)
+ *   - AND is a meeting/event type (type: meeting|event|call) OR lives in meetings/ or gdocs/
+ * This avoids treating every author or source page with a `created:` date as a timeline event.
+ *
+ * Uses parseMarkdown directly so that `type` and `title` (stripped from cleanFrontmatter) are accessible.
+ * Handles `date` as a JS Date object (YAML auto-conversion by gray-matter).
+ */
+export function extractTimelineFromFrontmatter(content: string, slug: string): ExtractedTimelineEntry[] {
+  try {
+    const parsed = parseMarkdown(content, slug + '.md');
+    const { title, type: pageType, frontmatter: fm } = parsed;
+
+    if (!title) return [];
+
+    // date may be a JS Date object (YAML auto-converts bare date scalars)
+    const rawDate = fm.date;
+    if (!rawDate) return [];
+    let dateStr: string;
+    if (rawDate instanceof Date) {
+      dateStr = rawDate.toISOString().slice(0, 10);
+    } else {
+      const s = String(rawDate);
+      if (!/^\d{4}-\d{2}-\d{2}/.test(s)) return [];
+      dateStr = s.slice(0, 10);
+    }
+
+    const type = (pageType ?? '').toLowerCase();
+    const topDir = slug.split('/')[0];
+    const isEventType = ['meeting', 'event', 'call'].includes(type);
+    const isEventDir = ['meetings', 'gdocs'].includes(topDir);
+    if (!isEventType && !isEventDir) return [];
+
+    const source = (fm.source as string | undefined) || type || 'frontmatter';
+    return [{ slug, date: dateStr, source, summary: title }];
+  } catch {
+    return [];
+  }
+}
 
 /** Extract timeline entries from markdown content */
 export function extractTimelineFromContent(content: string, slug: string): ExtractedTimelineEntry[] {
@@ -216,6 +321,7 @@ async function extractLinksFromDir(
 ): Promise<{ created: number; pages: number }> {
   const files = walkMarkdownFiles(brainDir);
   const allSlugs = new Set(files.map(f => f.relPath.replace('.md', '')));
+  const nameToSlug = buildNameToSlugMap(files);
 
   // Load existing links for O(1) dedup
   const existing = new Set<string>();
@@ -232,7 +338,7 @@ async function extractLinksFromDir(
   for (let i = 0; i < files.length; i++) {
     try {
       const content = readFileSync(files[i].path, 'utf-8');
-      const links = extractLinksFromFile(content, files[i].relPath, allSlugs);
+      const links = extractLinksFromFile(content, files[i].relPath, allSlugs, nameToSlug);
       for (const link of links) {
         const key = `${link.from_slug}::${link.to_slug}`;
         if (existing.has(key)) continue;
@@ -281,7 +387,12 @@ async function extractTimelineFromDir(
     try {
       const content = readFileSync(files[i].path, 'utf-8');
       const slug = files[i].relPath.replace('.md', '');
-      for (const entry of extractTimelineFromContent(content, slug)) {
+      // Combine inline timeline markers + frontmatter-date events
+      const entries = [
+        ...extractTimelineFromContent(content, slug),
+        ...extractTimelineFromFrontmatter(content, slug),
+      ];
+      for (const entry of entries) {
         const key = `${entry.slug}::${entry.date}::${entry.summary}`;
         if (existing.has(key)) continue;
         existing.add(key);
@@ -313,13 +424,14 @@ async function extractTimelineFromDir(
 export async function extractLinksForSlugs(engine: BrainEngine, repoPath: string, slugs: string[]): Promise<number> {
   const allFiles = walkMarkdownFiles(repoPath);
   const allSlugs = new Set(allFiles.map(f => f.relPath.replace('.md', '')));
+  const nameToSlug = buildNameToSlugMap(allFiles);
   let created = 0;
   for (const slug of slugs) {
     const filePath = join(repoPath, slug + '.md');
     if (!existsSync(filePath)) continue;
     try {
       const content = readFileSync(filePath, 'utf-8');
-      for (const link of extractLinksFromFile(content, slug + '.md', allSlugs)) {
+      for (const link of extractLinksFromFile(content, slug + '.md', allSlugs, nameToSlug)) {
         try { await engine.addLink(link.from_slug, link.to_slug, link.context, link.link_type); created++; } catch { /* skip */ }
       }
     } catch { /* skip */ }
@@ -334,7 +446,11 @@ export async function extractTimelineForSlugs(engine: BrainEngine, repoPath: str
     if (!existsSync(filePath)) continue;
     try {
       const content = readFileSync(filePath, 'utf-8');
-      for (const entry of extractTimelineFromContent(content, slug)) {
+      const entries = [
+        ...extractTimelineFromContent(content, slug),
+        ...extractTimelineFromFrontmatter(content, slug),
+      ];
+      for (const entry of entries) {
         try { await engine.addTimelineEntry(entry.slug, { date: entry.date, source: entry.source, summary: entry.summary, detail: entry.detail }); created++; } catch { /* skip */ }
       }
     } catch { /* skip */ }

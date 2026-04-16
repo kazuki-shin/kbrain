@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'bun:test';
 import {
   extractMarkdownLinks,
+  extractWikiLinks,
+  buildNameToSlugMap,
   extractLinksFromFile,
   extractTimelineFromContent,
+  extractTimelineFromFrontmatter,
   walkMarkdownFiles,
 } from '../src/commands/extract.ts';
 
@@ -56,6 +59,15 @@ describe('extractLinksFromFile', () => {
     const companyLinks = links.filter(l => l.link_type === 'works_at');
     expect(companyLinks.length).toBeGreaterThanOrEqual(1);
     expect(companyLinks[0].to_slug).toBe('companies/brex');
+  });
+
+  it('handles attendee objects with name field (granola format)', () => {
+    const content = '---\nattendees:\n  - name: Kazuki\n    company: Kaigo\n    email: k@kaigo.ai\ntype: meeting\n---\nBody.';
+    const allSlugs = new Set(['meetings/test']);
+    const links = extractLinksFromFile(content, 'meetings/test.md', allSlugs);
+    const attendeeLinks = links.filter(l => l.link_type === 'attendee');
+    expect(attendeeLinks.length).toBeGreaterThanOrEqual(1);
+    expect(attendeeLinks[0].to_slug).toBe('people/kazuki');
   });
 
   it('extracts frontmatter investors array', () => {
@@ -121,5 +133,125 @@ describe('extractTimelineFromContent', () => {
 describe('walkMarkdownFiles', () => {
   it('is a function', () => {
     expect(typeof walkMarkdownFiles).toBe('function');
+  });
+});
+
+describe('extractWikiLinks', () => {
+  it('extracts simple wiki-links', () => {
+    const content = 'See [[Author - _avichawla]] for details.';
+    const links = extractWikiLinks(content);
+    expect(links).toHaveLength(1);
+    expect(links[0].target).toBe('Author - _avichawla');
+    expect(links[0].name).toBe('Author - _avichawla');
+  });
+
+  it('extracts wiki-links with alias', () => {
+    const content = '[[Collection - Karpathy LLM Knowledge Base Cluster|Karpathy LLM Cluster]]';
+    const links = extractWikiLinks(content);
+    expect(links).toHaveLength(1);
+    expect(links[0].target).toBe('Collection - Karpathy LLM Knowledge Base Cluster');
+    expect(links[0].name).toBe('Karpathy LLM Cluster');
+  });
+
+  it('extracts multiple wiki-links', () => {
+    const content = '[[Page A]] and [[Page B|alias B]]';
+    const links = extractWikiLinks(content);
+    expect(links).toHaveLength(2);
+  });
+
+  it('returns empty for no wiki-links', () => {
+    expect(extractWikiLinks('No wiki links here.')).toHaveLength(0);
+  });
+});
+
+describe('buildNameToSlugMap', () => {
+  it('maps basename to slug', () => {
+    const files = [
+      { relPath: '15 Authors/Author - _avichawla.md' },
+      { relPath: '10 Sources/X/X - _avichawla - Compiled Wiki.md' },
+    ];
+    const map = buildNameToSlugMap(files);
+    expect(map.get('Author - _avichawla')).toEqual(['15 Authors/Author - _avichawla']);
+    expect(map.get('X - _avichawla - Compiled Wiki')).toEqual(['10 Sources/X/X - _avichawla - Compiled Wiki']);
+  });
+
+  it('detects ambiguous names (multiple slugs per basename)', () => {
+    const files = [
+      { relPath: 'dir1/Shared Name.md' },
+      { relPath: 'dir2/Shared Name.md' },
+    ];
+    const map = buildNameToSlugMap(files);
+    expect(map.get('Shared Name')?.length).toBe(2);
+  });
+});
+
+describe('extractLinksFromFile with wiki-links', () => {
+  it('resolves wiki-links to slugs via nameToSlug map', () => {
+    const content = '---\ntitle: Test\n---\nSee [[Author - _avichawla]].';
+    const allSlugs = new Set(['15 Authors/Author - _avichawla', 'sources/test']);
+    const nameToSlug = new Map([['Author - _avichawla', ['15 Authors/Author - _avichawla']]]);
+    const links = extractLinksFromFile(content, 'sources/test.md', allSlugs, nameToSlug);
+    const wikiLinks = links.filter(l => l.context.includes('wiki link'));
+    expect(wikiLinks).toHaveLength(1);
+    expect(wikiLinks[0].to_slug).toBe('15 Authors/Author - _avichawla');
+  });
+
+  it('skips ambiguous wiki-links', () => {
+    const content = 'See [[Ambiguous Page]].';
+    const allSlugs = new Set(['dir1/Ambiguous Page', 'dir2/Ambiguous Page', 'sources/test']);
+    const nameToSlug = new Map([['Ambiguous Page', ['dir1/Ambiguous Page', 'dir2/Ambiguous Page']]]);
+    const links = extractLinksFromFile(content, 'sources/test.md', allSlugs, nameToSlug);
+    expect(links.filter(l => l.context.includes('wiki link'))).toHaveLength(0);
+  });
+
+  it('skips self-links in wiki-links', () => {
+    const content = '[[Self Page]]';
+    const allSlugs = new Set(['sources/Self Page']);
+    const nameToSlug = new Map([['Self Page', ['sources/Self Page']]]);
+    const links = extractLinksFromFile(content, 'sources/Self Page.md', allSlugs, nameToSlug);
+    expect(links.filter(l => l.context.includes('wiki link'))).toHaveLength(0);
+  });
+});
+
+describe('extractTimelineFromFrontmatter', () => {
+  it('extracts timeline entry for meeting with date and title', () => {
+    const content = '---\ntitle: "Help & Care x Kaigo"\ntype: meeting\ndate: 2026-01-17\nsource: granola\n---\nBody.';
+    const entries = extractTimelineFromFrontmatter(content, 'meetings/2026-01-17-help-care');
+    expect(entries).toHaveLength(1);
+    expect(entries[0].date).toBe('2026-01-17');
+    expect(entries[0].summary).toBe('Help & Care x Kaigo');
+    expect(entries[0].source).toBe('granola');
+  });
+
+  it('extracts timeline entry for page in meetings/ dir without explicit type', () => {
+    const content = '---\ntitle: "Standup"\ndate: 2026-01-20\n---\nBody.';
+    const entries = extractTimelineFromFrontmatter(content, 'meetings/2026-01-20-standup');
+    expect(entries).toHaveLength(1);
+  });
+
+  it('skips author pages — has date but not in event dir or type', () => {
+    const content = '---\ntitle: "Avi Chawla"\ncreated: 2025-06-01\n---\nBody.';
+    const entries = extractTimelineFromFrontmatter(content, '15 Authors/Author - _avichawla');
+    expect(entries).toHaveLength(0);
+  });
+
+  it('extracts timeline entry for meeting even without explicit title (inferTitle from filename)', () => {
+    const content = '---\ntype: meeting\ndate: 2026-01-17\n---\nBody.';
+    const entries = extractTimelineFromFrontmatter(content, 'meetings/2026-01-17-standup');
+    expect(entries).toHaveLength(1);
+    // title is inferred from filename when not explicit
+    expect(entries[0].date).toBe('2026-01-17');
+  });
+
+  it('skips pages with invalid date format', () => {
+    const content = '---\ntitle: "Test"\ntype: meeting\ndate: January 2026\n---\nBody.';
+    const entries = extractTimelineFromFrontmatter(content, 'meetings/test');
+    expect(entries).toHaveLength(0);
+  });
+
+  it('also extracts for gdocs/ pages', () => {
+    const content = '---\ntitle: "Board Meeting Notes"\ndate: 2026-02-01\n---\nBody.';
+    const entries = extractTimelineFromFrontmatter(content, 'gdocs/board-meeting-notes');
+    expect(entries).toHaveLength(1);
   });
 });
