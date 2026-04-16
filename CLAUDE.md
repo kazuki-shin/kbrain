@@ -60,8 +60,10 @@ markdown files (tool-agnostic, work with both CLI and plugin contexts).
 - `src/core/schema-embedded.ts` — AUTO-GENERATED from schema.sql (run `bun run build:schema`)
 - `src/schema.sql` — Full Postgres + pgvector DDL (source of truth, generates schema-embedded.ts)
 - `src/commands/ingest-bookmarks.ts` — `gbrain ingest:bookmarks` command: fetch, compile, and import X bookmarks into the brain
+- `src/commands/ingest-arxiv.ts` — `gbrain ingest:arxiv` command: fetch ArXiv metadata/PDFs, compile paper pages, and import into the brain
 - `src/bookmarks/compiler.ts` — Bookmark compiler: raw tweet/thread JSON → subject-first brain pages (markdown)
 - `src/bookmarks/pipeline.ts` — Bookmark pipeline: workspace resolution, URL list fetch, self-thread extraction via X browser session
+- `src/arxiv/` — ArXiv ingestion pipeline: API normalization/fetch, PDF text extraction, summary generation, markdown compiler
 - `src/x/` — X (Twitter) browser automation: fetchTweet, login, session management (Playwright-based, no API key)
 - `src/commands/integrations.ts` — Standalone integration recipe management (no DB needed)
 - `recipes/` — Integration recipe files (YAML frontmatter + markdown setup instructions)
@@ -118,6 +120,7 @@ Key commands added in v0.7:
 
 Key commands added in v0.11:
 - `gbrain ingest:bookmarks [opts] [urls...]` (alias: `x:sync`) — fetch X bookmarks via browser session, compile to markdown, import into brain
+- `gbrain ingest:arxiv [opts] [ids|urls...]` — fetch ArXiv paper metadata and PDFs, extract text, compile paper/author pages, and import into brain
 
 ## Testing
 
@@ -155,7 +158,8 @@ parity), `test/cli.test.ts` (CLI structure), `test/config.test.ts` (config redac
 `test/data-research.test.ts` (recipe validation, MRR/ARR extraction, dedup, tracker parsing, HTML stripping),
 `test/extract.test.ts` (link extraction, timeline extraction, frontmatter parsing, directory type inference),
 `test/features.test.ts` (feature scanning, brain_score calculation, CLI routing, persistence),
-`test/bookmarks-compiler.test.ts` (bookmark compiler: raw tweet/thread JSON → subject-first brain pages).
+`test/bookmarks-compiler.test.ts` (bookmark compiler: raw tweet/thread JSON → subject-first brain pages),
+`test/arxiv.test.ts` (ArXiv ID parsing, compiler output, deterministic summaries).
 
 E2E tests (`test/e2e/`): Run against real Postgres+pgvector. Require `DATABASE_URL`.
 - `bun run test:e2e` runs Tier 1 (mechanical, all operations, no API keys)

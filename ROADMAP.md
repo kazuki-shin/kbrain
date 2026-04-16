@@ -113,9 +113,9 @@ scrape → raw/ → compile → vault/ → kbrain syncs automatically.
    - Compile into per-episode or per-speaker notes
 
 4. **ArXiv / papers**
-   - PDF → markdown pipeline
-   - kbrain can read PDFs directly
-   - Compile into concept notes with key findings
+   - `gbrain ingest:arxiv` now fetches metadata, downloads PDFs, extracts text, and compiles paper + author pages
+   - Batch backfill supported via `--urls-from FILE`
+   - Next step: autopilot orchestration over saved reading lists
 
 5. **RSS / blogs**
    - Long-form writing from people you follow

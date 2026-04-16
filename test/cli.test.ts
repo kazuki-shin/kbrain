@@ -21,6 +21,7 @@ describe('CLI structure', () => {
     expect(cliSource).toContain("'embed'");
     expect(cliSource).toContain("'files'");
     expect(cliSource).toContain("'ingest:bookmarks'");
+    expect(cliSource).toContain("'ingest:arxiv'");
   });
 
   test('has formatResult function for CLI output', () => {
@@ -118,6 +119,18 @@ describe('CLI dispatch integration', () => {
     const stdout = await new Response(proc.stdout).text();
     const exitCode = await proc.exited;
     expect(stdout).toContain('Usage: gbrain ingest:bookmarks');
+    expect(exitCode).toBe(0);
+  });
+
+  test('ingest:arxiv --help prints usage without DB connection', async () => {
+    const proc = Bun.spawn(['bun', 'run', 'src/cli.ts', 'ingest:arxiv', '--help'], {
+      cwd: new URL('..', import.meta.url).pathname,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stdout = await new Response(proc.stdout).text();
+    const exitCode = await proc.exited;
+    expect(stdout).toContain('Usage: gbrain ingest:arxiv');
     expect(exitCode).toBe(0);
   });
 

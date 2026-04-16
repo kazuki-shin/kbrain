@@ -18,7 +18,7 @@ for (const op of operations) {
 }
 
 // CLI-only commands that bypass the operation layer
-const CLI_ONLY = new Set(['init', 'upgrade', 'post-upgrade', 'check-update', 'integrations', 'publish', 'check-backlinks', 'lint', 'report', 'import', 'export', 'files', 'embed', 'serve', 'call', 'config', 'doctor', 'migrate', 'eval', 'sync', 'extract', 'features', 'autopilot', 'ingest:bookmarks', 'x:sync', 'x']);
+const CLI_ONLY = new Set(['init', 'upgrade', 'post-upgrade', 'check-update', 'integrations', 'publish', 'check-backlinks', 'lint', 'report', 'import', 'export', 'files', 'embed', 'serve', 'call', 'config', 'doctor', 'migrate', 'eval', 'sync', 'extract', 'features', 'autopilot', 'ingest:bookmarks', 'ingest:arxiv', 'x:sync', 'x']);
 
 async function main() {
   const args = process.argv.slice(2);
@@ -302,10 +302,22 @@ async function handleCliOnly(command: string, args: string[]) {
     printIngestBookmarksHelp();
     return;
   }
+  if (command === 'ingest:arxiv'
+      && (args.includes('--help') || args.includes('-h'))) {
+    const { printIngestArxivHelp } = await import('./commands/ingest-arxiv.ts');
+    printIngestArxivHelp();
+    return;
+  }
   if ((command === 'ingest:bookmarks' || command === 'x:sync')
       && (args.includes('--compile-only') || args.includes('--no-import'))) {
     const { runIngestBookmarks } = await import('./commands/ingest-bookmarks.ts');
     await runIngestBookmarks(null, args);
+    return;
+  }
+  if (command === 'ingest:arxiv'
+      && (args.includes('--compile-only') || args.includes('--no-import'))) {
+    const { runIngestArxiv } = await import('./commands/ingest-arxiv.ts');
+    await runIngestArxiv(null, args);
     return;
   }
 
@@ -403,6 +415,11 @@ async function handleCliOnly(command: string, args: string[]) {
         await runIngestBookmarks(engine, args);
         break;
       }
+      case 'ingest:arxiv': {
+        const { runIngestArxiv } = await import('./commands/ingest-arxiv.ts');
+        await runIngestArxiv(engine, args);
+        break;
+      }
     }
   } finally {
     if (command !== 'serve') await engine.disconnect();
@@ -473,6 +490,7 @@ IMPORT/EXPORT
   sync --watch [--interval N]        Continuous sync (loops until stopped)
   sync --install-cron                Install persistent sync daemon
   ingest:bookmarks [opts] [urls...]  Fetch X bookmarks -> compile -> import
+  ingest:arxiv [opts] [ids...]       Fetch ArXiv papers -> compile -> import
   x:sync [opts] [urls...]            Alias for ingest:bookmarks
   export [--dir ./out/]              Export to markdown
 

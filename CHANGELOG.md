@@ -2,6 +2,22 @@
 
 All notable changes to GBrain will be documented in this file.
 
+## [0.12.0] - 2026-04-15
+
+### Added
+
+- **`gbrain ingest:arxiv` turns ArXiv papers into brain pages.** Give it an ArXiv URL or ID, and it fetches metadata, downloads the PDF, extracts text, compiles a structured paper page, creates author people pages, and imports everything into the brain in one command.
+
+- **Batch backfill for reading lists.** `--urls-from` / `--ids-from` imports a saved paper list in one pass, so you can seed an existing research backlog instead of adding papers one by one.
+
+- **ArXiv compiler pipeline (`src/arxiv/`)** adds URL/ID normalization, ArXiv Atom parsing, PDF extraction via `pdfjs-dist`, deterministic plus LLM-assisted paper summaries, and markdown generation for paper and author pages.
+
+### Changed
+
+- **The CLI now exposes ArXiv ingestion as a first-class command.** `gbrain --help` and command-specific help both list `ingest:arxiv`, matching the existing bookmarks ingestion flow.
+
+- **Workspace-generated ingestion artifacts are now ignored by git.** `.arxiv/` and `.superset/` no longer show up as untracked noise after local ingestion runs.
+
 ## [0.11.0] - 2026-04-15
 
 ### Added
