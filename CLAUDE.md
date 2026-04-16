@@ -51,7 +51,7 @@ markdown files (tool-agnostic, work with both CLI and plugin contexts).
 - `src/core/transcription.ts` — Audio transcription: Groq Whisper (default), OpenAI fallback, ffmpeg segmentation for >25MB
 - `src/core/enrichment-service.ts` — Global enrichment service: entity slug generation, tier auto-escalation, batch throttling
 - `src/core/data-research.ts` — Recipe validation, field extraction (MRR/ARR regex), dedup, tracker parsing, HTML stripping
-- `src/commands/extract.ts` — `gbrain extract links|timeline|all`: batch link/timeline extraction from markdown
+- `src/commands/extract.ts` — `gbrain extract links|timeline|all`: batch link/timeline extraction from markdown; supports Obsidian wiki-links (`[[Page Name|alias]]`) via `buildNameToSlugMap` + `extractWikiLinks`; extracts timeline entries from frontmatter `date:` for meeting/gdocs pages via `extractTimelineFromFrontmatter`
 - `src/commands/features.ts` — `gbrain features --json --auto-fix`: usage scan + feature adoption salesman
 - `src/commands/autopilot.ts` — `gbrain autopilot --install`: self-maintaining brain daemon (collect→sync→extract→enrich(step 2.5)→embed); collector config at `~/.gbrain/collectors.json`
 - `src/mcp/server.ts` — MCP stdio server (generated from operations)
@@ -79,7 +79,7 @@ markdown files (tool-agnostic, work with both CLI and plugin contexts).
 - `docs/guides/quiet-hours.md` — Notification hold + timezone-aware delivery
 - `docs/guides/diligence-ingestion.md` — Data room to brain pages pipeline
 - `docs/designs/HOMEBREW_FOR_PERSONAL_AI.md` — 10-star vision for integration system
-- `docs/mcp/` — Per-client setup guides (Claude Desktop, Code, Cowork, Perplexity)
+- `docs/mcp/` — Per-client setup guides (Claude Desktop, Code, Cowork, Perplexity, OpenClaw, Hermes)
 - `docs/benchmarks/` — Search quality benchmark results (reproducible, fictional data)
 - `skills/_brain-filing-rules.md` — Cross-cutting brain filing rules (referenced by all brain-writing skills)
 - `skills/RESOLVER.md` — Skill routing table (modeled on Wintermute's AGENTS.md)
@@ -156,7 +156,7 @@ parity), `test/cli.test.ts` (CLI structure), `test/config.test.ts` (config redac
 `test/transcription.test.ts` (provider detection, format validation, API key errors),
 `test/enrichment-service.test.ts` (entity slugification, extraction, tier escalation),
 `test/data-research.test.ts` (recipe validation, MRR/ARR extraction, dedup, tracker parsing, HTML stripping),
-`test/extract.test.ts` (link extraction, timeline extraction, frontmatter parsing, directory type inference),
+`test/extract.test.ts` (link extraction, wiki-link resolution, timeline extraction, frontmatter-date timeline, attendee object links, directory type inference),
 `test/features.test.ts` (feature scanning, brain_score calculation, CLI routing, persistence),
 `test/bookmarks-compiler.test.ts` (bookmark compiler: raw tweet/thread JSON → subject-first brain pages),
 `test/arxiv.test.ts` (ArXiv ID parsing, compiler output, deterministic summaries),
