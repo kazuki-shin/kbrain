@@ -114,7 +114,7 @@ export async function enrichEntity(
   try {
     await engine.addTimelineEntry(slug, {
       date: new Date().toISOString().split('T')[0],
-      content: `Referenced in [${request.sourceSlug}](${request.sourceSlug}) — ${request.context}`,
+      summary: `Referenced in [${request.sourceSlug}](${request.sourceSlug}) — ${request.context}`,
       source: request.sourceSlug,
     });
     timelineAdded = true;
@@ -167,11 +167,15 @@ export async function enrichEntities(
  * Extract entities from text, then enrich each.
  * Uses simple regex patterns for entity detection.
  * This is the first fail-improve integration candidate (per Codex review).
+ *
+ * Pass `throttle: false` when called inline (e.g. from the import pipeline)
+ * to skip load-aware throttling. Throttle defaults to true for batch/background use.
  */
 export async function extractAndEnrich(
   engine: BrainEngine,
   text: string,
   sourceSlug: string,
+  opts?: { throttle?: boolean },
 ): Promise<EnrichmentResult[]> {
   const entities = extractEntities(text);
   if (entities.length === 0) return [];
@@ -183,7 +187,7 @@ export async function extractAndEnrich(
     sourceSlug,
   }));
 
-  return enrichEntities(engine, requests);
+  return enrichEntities(engine, requests, { throttle: opts?.throttle !== false });
 }
 
 // ---------------------------------------------------------------------------
@@ -233,10 +237,8 @@ function suggestTier(
 
 /** Generate stub content for a new entity page. */
 function generateStubContent(name: string, type: 'person' | 'company', context: string): string {
-  if (type === 'person') {
-    return `# ${name}\n\n**Type:** Person\n\n## Summary\n\n*Stub page. ${context}*\n\n## Timeline\n`;
-  }
-  return `# ${name}\n\n**Type:** Company\n\n## Summary\n\n*Stub page. ${context}*\n\n## Timeline\n`;
+  const label = type === 'person' ? 'Person' : 'Company';
+  return `# ${name}\n\n**Type:** ${label}\n\n## Summary\n\n*Stub page. ${context}*\n\n## Timeline\n`;
 }
 
 /** Simple entity extraction from text using regex patterns. */

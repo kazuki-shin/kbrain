@@ -380,6 +380,110 @@ Content to chunk but not embed.
     expect(result.status).toBe('imported');
   });
 
+  test('enriches entities after successful import', async () => {
+    const filePath = join(TMP, 'entity-mention.md');
+    writeFileSync(filePath, `---
+type: concept
+title: Deal Notes
+---
+
+I met with John Smith from Acme Corp to discuss the partnership.
+`);
+
+    const engine = mockEngine();
+    const result = await importFile(engine, filePath, 'deals/entity-mention.md', { noEmbed: true });
+
+    expect(result.status).toBe('imported');
+
+    const calls = (engine as any)._calls;
+    const putCalls = calls.filter((c: any) => c.method === 'putPage');
+
+    // The page itself + at least one entity stub
+    expect(putCalls.length).toBeGreaterThan(1);
+
+    const slugsWritten = putCalls.map((c: any) => c.args[0] as string);
+    expect(slugsWritten).toContain('deals/entity-mention');
+    const hasEntityStub = slugsWritten.some((s: string) =>
+      s.startsWith('people/') || s.startsWith('companies/')
+    );
+    expect(hasEntityStub).toBe(true);
+  });
+
+  test('enrichment failure does not block import', async () => {
+    const engine = mockEngine({
+      // searchKeyword throws to simulate enrichment failure
+      searchKeyword: () => Promise.reject(new Error('search service unavailable')),
+      putPage: (slug: string, _data: any) => {
+        // Allow the real page write; reject entity stub writes
+        if ((slug as string).startsWith('people/') || (slug as string).startsWith('companies/')) {
+          return Promise.reject(new Error('entity write blocked'));
+        }
+        return Promise.resolve(null);
+      },
+    });
+
+    const content = `---
+type: concept
+title: Test
+---
+
+Met John Smith today.
+`;
+
+    const result = await importFromContent(engine, 'notes/test', content, { noEmbed: true });
+    // Import must succeed even when enrichment errors out
+    expect(result.status).toBe('imported');
+  });
+
+  test('skipped import does not trigger enrichment', async () => {
+    const filePath = join(TMP, 'skipped-enrich.md');
+    writeFileSync(filePath, `---
+type: concept
+title: Already Indexed
+---
+
+John Smith is mentioned here.
+`);
+
+    // Provide a matching hash so the import is skipped
+    const { createHash } = await import('crypto');
+    const { parseMarkdown } = await import('../src/core/markdown.ts');
+    const rawContent = `---
+type: concept
+title: Already Indexed
+---
+
+John Smith is mentioned here.
+`;
+    const parsed = parseMarkdown(rawContent, 'concepts/skipped-enrich.md');
+    const hash = createHash('sha256')
+      .update(JSON.stringify({
+        title: parsed.title,
+        type: parsed.type,
+        compiled_truth: parsed.compiled_truth,
+        timeline: parsed.timeline,
+        frontmatter: parsed.frontmatter,
+        tags: parsed.tags.sort(),
+      }))
+      .digest('hex');
+
+    const engine = mockEngine({
+      getPage: () => Promise.resolve({ content_hash: hash } as any),
+    });
+
+    const result = await importFile(engine, filePath, 'concepts/skipped-enrich.md', { noEmbed: true });
+
+    expect(result.status).toBe('skipped');
+
+    // No entity stubs — enrichment must not run on skipped pages
+    const calls = (engine as any)._calls;
+    const entityPuts = calls.filter((c: any) =>
+      c.method === 'putPage' &&
+      ((c.args[0] as string).startsWith('people/') || (c.args[0] as string).startsWith('companies/'))
+    );
+    expect(entityPuts.length).toBe(0);
+  });
+
   test('assigns sequential chunk_index values', async () => {
     const filePath = join(TMP, 'indexed.md');
     const longText = Array(50).fill('This is a sentence that adds length to the content.').join(' ');

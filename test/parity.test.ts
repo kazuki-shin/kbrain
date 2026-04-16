@@ -70,6 +70,47 @@ describe('operations contract parity', () => {
     expect(operations.length).toBeGreaterThanOrEqual(30);
   });
 
+  test('enrich_entity and extract_entities operations are present', () => {
+    expect(operationsByName['enrich_entity']).toBeDefined();
+    expect(operationsByName['extract_entities']).toBeDefined();
+  });
+
+  test('enrich_entity dry_run returns expected shape', async () => {
+    const op = operationsByName['enrich_entity'];
+    const ctx = {
+      engine: {} as any,
+      config: { engine: 'pglite' as any },
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+      dryRun: true,
+    };
+    const result = await op.handler(ctx, {
+      entity_name: 'John Smith',
+      entity_type: 'person',
+      context: 'test context',
+      source_slug: 'notes/test',
+    }) as any;
+    expect(result.dry_run).toBe(true);
+    expect(result.action).toBe('enrich_entity');
+    expect(result.entity_name).toBe('John Smith');
+  });
+
+  test('extract_entities dry_run returns expected shape', async () => {
+    const op = operationsByName['extract_entities'];
+    const ctx = {
+      engine: {} as any,
+      config: { engine: 'pglite' as any },
+      logger: { info: () => {}, warn: () => {}, error: () => {} },
+      dryRun: true,
+    };
+    const result = await op.handler(ctx, {
+      text: 'John Smith visited Acme Corp.',
+      source_slug: 'notes/test',
+    }) as any;
+    expect(result.dry_run).toBe(true);
+    expect(result.action).toBe('extract_entities');
+    expect(result.source_slug).toBe('notes/test');
+  });
+
   test('MCP tool definitions can be generated from operations', () => {
     const tools = operations.map(op => ({
       name: op.name,

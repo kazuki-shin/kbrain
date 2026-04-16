@@ -650,6 +650,48 @@ const file_url: Operation = {
   },
 };
 
+// --- Enrichment ---
+
+const enrich_entity: Operation = {
+  name: 'enrich_entity',
+  description: 'Enrich a single entity: create/update person or company page, add backlink and timeline entry',
+  params: {
+    entity_name: { type: 'string', required: true, description: 'Entity name (person or company)' },
+    entity_type: { type: 'string', required: true, enum: ['person', 'company'], description: 'Entity type' },
+    context: { type: 'string', required: true, description: 'Context in which entity was mentioned' },
+    source_slug: { type: 'string', required: true, description: 'Slug of the source page' },
+  },
+  mutating: true,
+  handler: async (ctx, p) => {
+    if (ctx.dryRun) return { dry_run: true, action: 'enrich_entity', entity_name: p.entity_name };
+    const { enrichEntity } = await import('./enrichment-service.ts');
+    return enrichEntity(ctx.engine, {
+      entityName: p.entity_name as string,
+      entityType: p.entity_type as 'person' | 'company',
+      context: p.context as string,
+      sourceSlug: p.source_slug as string,
+    });
+  },
+  cliHints: { name: 'enrich', positional: ['entity_name'] },
+};
+
+const extract_entities: Operation = {
+  name: 'extract_entities',
+  description: 'Extract entities from text and auto-create person/company stubs in the brain',
+  params: {
+    text: { type: 'string', required: true, description: 'Text to extract entities from' },
+    source_slug: { type: 'string', required: true, description: 'Slug of the source page' },
+  },
+  mutating: true,
+  handler: async (ctx, p) => {
+    if (ctx.dryRun) return { dry_run: true, action: 'extract_entities', source_slug: p.source_slug };
+    const { extractAndEnrich } = await import('./enrichment-service.ts');
+    const results = await extractAndEnrich(ctx.engine, p.text as string, p.source_slug as string);
+    return { entities_found: results.length, results };
+  },
+  cliHints: { name: 'extract-entities', positional: ['source_slug'], stdin: 'text' },
+};
+
 // --- Exports ---
 
 export const operations: Operation[] = [
@@ -675,6 +717,8 @@ export const operations: Operation[] = [
   log_ingest, get_ingest_log,
   // Files
   file_list, file_upload, file_url,
+  // Enrichment
+  enrich_entity, extract_entities,
 ];
 
 export const operationsByName = Object.fromEntries(

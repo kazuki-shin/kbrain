@@ -103,11 +103,14 @@ export async function runAutopilot(engine: BrainEngine, args: string[]) {
     }
 
     // 1. Sync
+    let syncedSlugs: string[] = [];
     try {
       const { performSync } = await import('./sync.ts');
-      const result = await performSync(engine, { repoPath, noEmbed: true });
+      // noEnrich: true — step 2.5 handles enrichment so sync doesn't double-enrich
+      const result = await performSync(engine, { repoPath, noEmbed: true, noEnrich: true });
       if (result.status === 'synced') {
         console.log(`[sync] +${result.added} ~${result.modified} -${result.deleted}`);
+        syncedSlugs = result.pagesAffected;
       }
     } catch (e) { logError('sync', e); cycleOk = false; }
 
@@ -116,6 +119,20 @@ export async function runAutopilot(engine: BrainEngine, args: string[]) {
       const { runExtract } = await import('./extract.ts');
       await runExtract(engine, ['all', '--dir', repoPath]);
     } catch (e) { logError('extract', e); cycleOk = false; }
+
+    // 2.5. Enrich entities from newly synced/modified pages
+    try {
+      const { extractAndEnrich } = await import('../core/enrichment-service.ts');
+      for (const slug of syncedSlugs) {
+        try {
+          const page = await engine.getPage(slug);
+          if (page) {
+            const text = [page.compiled_truth, page.timeline].filter(Boolean).join('\n');
+            await extractAndEnrich(engine, text, slug);
+          }
+        } catch { /* per-page errors don't stop the batch */ }
+      }
+    } catch (e) { logError('enrich', e); cycleOk = false; }
 
     // 3. Embed stale
     try {
