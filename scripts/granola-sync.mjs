@@ -20,7 +20,7 @@ import { join } from 'node:path';
 // --- Config ---
 const DEFAULT_BRAIN_DIR = process.env.KBRAIN_DIR || join(process.env.HOME, 'Documents/kbrain');
 const DEFAULT_DAYS = 7;
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 200;
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -46,14 +46,9 @@ function slugify(str) {
     .slice(0, 80);
 }
 
-function listMeetings(limit) {
-  const raw = run(`npx granola-cli meeting list --limit ${limit} --output json 2>/dev/null`);
-  return JSON.parse(raw);
-}
-
-function exportMeetingContent(id) {
-  // Export returns notes_markdown, notes_raw, transcript — NOT metadata
-  const raw = run(`npx granola-cli meeting export ${id} --format json 2>/dev/null`);
+function listMeetings(limit, since) {
+  const sinceArg = since ? ` --since ${since}` : '';
+  const raw = run(`npx granola-cli meeting list --limit ${limit}${sinceArg} --output json 2>/dev/null`);
   return JSON.parse(raw);
 }
 
@@ -129,7 +124,7 @@ function getMeetingDate(meeting) {
   return meeting.created_at || new Date().toISOString();
 }
 
-function buildMarkdown(meeting, enhanced, transcript) {
+function buildMarkdown(meeting, enhanced) {
   const title = meeting.title || 'Untitled Meeting';
   const date = formatDate(getMeetingDate(meeting));
   const attendees = extractAttendees(meeting);
@@ -155,10 +150,12 @@ function buildMarkdown(meeting, enhanced, transcript) {
     }
   }
   fm += `tags: [${tags.join(', ')}]\n`;
+  fm += `granola_url: ${granolaUrl}\n`;
   fm += `---\n\n`;
 
   // Body
   let body = `# ${title}\n\n`;
+  body += `> [View in Granola](${granolaUrl})\n\n`;
 
   if (attendees.length > 0) {
     body += `## Attendees\n`;
@@ -172,10 +169,6 @@ function buildMarkdown(meeting, enhanced, transcript) {
 
   if (enhanced) {
     body += enhanced + '\n\n';
-  }
-
-  if (transcript) {
-    body += `---\n\n## Transcript\n\n${transcript}\n\n`;
   }
 
   body += `---\n[Source: Granola](${granolaUrl})\n`;
@@ -197,12 +190,17 @@ async function main() {
     run('npx granola-cli auth login');
   }
 
-  console.log(`Syncing last ${opts.days} days of Granola meetings to ${meetingsDir}`);
+  // Compute --since date for the granola-cli filter
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - opts.days);
+  const since = cutoff.toISOString().split('T')[0]; // YYYY-MM-DD
+
+  console.log(`Syncing Granola meetings since ${since} to ${meetingsDir}`);
 
   // List meetings
   let meetings;
   try {
-    meetings = listMeetings(opts.limit);
+    meetings = listMeetings(opts.limit, since);
   } catch (e) {
     console.error('Failed to list meetings:', e.message);
     process.exit(1);
@@ -212,10 +210,6 @@ async function main() {
     console.log('No meetings found.');
     return;
   }
-
-  // Filter by date
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - opts.days);
 
   let synced = 0;
   let skipped = 0;
@@ -246,12 +240,10 @@ async function main() {
     }
 
     try {
-      // Use list metadata for meeting info (title, date, attendees, calendar)
-      // Use export/enhanced/transcript for content
+      // List metadata → frontmatter. Enhanced notes → body. Granola URL → backtrace.
       const enhanced = getEnhancedNotes(id);
-      const transcript = getTranscript(id);
 
-      const md = buildMarkdown(m, enhanced, transcript);
+      const md = buildMarkdown(m, enhanced);
       writeFileSync(filepath, md, 'utf-8');
       synced++;
     } catch (e) {
