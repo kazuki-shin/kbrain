@@ -18,7 +18,7 @@ for (const op of operations) {
 }
 
 // CLI-only commands that bypass the operation layer
-const CLI_ONLY = new Set(['init', 'upgrade', 'post-upgrade', 'check-update', 'integrations', 'publish', 'check-backlinks', 'lint', 'report', 'import', 'export', 'files', 'embed', 'serve', 'call', 'config', 'doctor', 'migrate', 'eval', 'sync', 'extract', 'features', 'autopilot', 'ingest:bookmarks', 'ingest:arxiv', 'x:sync', 'x']);
+const CLI_ONLY = new Set(['init', 'upgrade', 'post-upgrade', 'check-update', 'integrations', 'publish', 'check-backlinks', 'lint', 'report', 'import', 'export', 'files', 'embed', 'serve', 'call', 'config', 'doctor', 'migrate', 'eval', 'sync', 'extract', 'features', 'autopilot', 'ingest:bookmarks', 'ingest:newsletters', 'ingest:arxiv', 'x:sync', 'x']);
 
 async function main() {
   const args = process.argv.slice(2);
@@ -296,10 +296,15 @@ async function handleCliOnly(command: string, args: string[]) {
     }
     return;
   }
-  if ((command === 'ingest:bookmarks' || command === 'x:sync')
+  if ((command === 'ingest:bookmarks' || command === 'x:sync' || command === 'ingest:newsletters')
       && (args.includes('--help') || args.includes('-h'))) {
-    const { printIngestBookmarksHelp } = await import('./commands/ingest-bookmarks.ts');
-    printIngestBookmarksHelp();
+    if (command === 'ingest:newsletters') {
+      const { printIngestNewslettersHelp } = await import('./commands/ingest-newsletters.ts');
+      printIngestNewslettersHelp();
+    } else {
+      const { printIngestBookmarksHelp } = await import('./commands/ingest-bookmarks.ts');
+      printIngestBookmarksHelp();
+    }
     return;
   }
   if (command === 'ingest:arxiv'
@@ -308,10 +313,15 @@ async function handleCliOnly(command: string, args: string[]) {
     printIngestArxivHelp();
     return;
   }
-  if ((command === 'ingest:bookmarks' || command === 'x:sync')
+  if ((command === 'ingest:bookmarks' || command === 'x:sync' || command === 'ingest:newsletters')
       && (args.includes('--compile-only') || args.includes('--no-import'))) {
-    const { runIngestBookmarks } = await import('./commands/ingest-bookmarks.ts');
-    await runIngestBookmarks(null, args);
+    if (command === 'ingest:newsletters') {
+      const { runIngestNewsletters } = await import('./commands/ingest-newsletters.ts');
+      await runIngestNewsletters(null, args);
+    } else {
+      const { runIngestBookmarks } = await import('./commands/ingest-bookmarks.ts');
+      await runIngestBookmarks(null, args);
+    }
     return;
   }
   if (command === 'ingest:arxiv'
@@ -415,6 +425,11 @@ async function handleCliOnly(command: string, args: string[]) {
         await runIngestBookmarks(engine, args);
         break;
       }
+      case 'ingest:newsletters': {
+        const { runIngestNewsletters } = await import('./commands/ingest-newsletters.ts');
+        await runIngestNewsletters(engine, args);
+        break;
+      }
       case 'ingest:arxiv': {
         const { runIngestArxiv } = await import('./commands/ingest-arxiv.ts');
         await runIngestArxiv(engine, args);
@@ -490,6 +505,8 @@ IMPORT/EXPORT
   sync --watch [--interval N]        Continuous sync (loops until stopped)
   sync --install-cron                Install persistent sync daemon
   ingest:bookmarks [opts] [urls...]  Fetch X bookmarks -> compile -> import
+  ingest:arxiv [opts] [ids...]       Fetch ArXiv papers -> compile -> import
+  ingest:newsletters [opts]          Gmail label -> newsletter pages -> import
   ingest:arxiv [opts] [ids...]       Fetch ArXiv papers -> compile -> import
   x:sync [opts] [urls...]            Alias for ingest:bookmarks
   export [--dir ./out/]              Export to markdown

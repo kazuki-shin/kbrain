@@ -1,8 +1,8 @@
 ---
 id: email-to-brain
 name: Email-to-Brain
-version: 0.7.0
-description: Gmail messages flow into brain pages. Deterministic collector pulls emails, agent analyzes and enriches entities.
+version: 0.8.0
+description: Gmail messages flow into brain pages. Deterministic collectors handle triage and newsletter ingestion; the agent analyzes and enriches entities.
 category: sense
 requires: [credential-gateway]
 secrets:
@@ -77,6 +77,14 @@ Agent reads digest
   ├── Brain page updates (timeline entries, compiled truth)
   ├── Action item extraction
   └── Priority classification (urgent / normal / noise)
+
+Newsletter label (`news`)
+  ↓ (deterministic Gmail query: `label:news`)
+Newsletter compiler
+  ├── HTML → markdown cleanup
+  ├── Per-issue source pages
+  ├── Topics + entity extraction
+  └── Skip already-ingested Gmail message IDs
 ```
 
 ## Opinionated Defaults
@@ -197,6 +205,58 @@ Key design rules for the collector:
 - All state persisted to `data/state.json` (last collect timestamp, known message IDs)
 - Output is structured JSON (machine-readable) AND markdown digest (agent-readable)
 
+### Newsletter Ingestion Mode
+
+Newsletters are not triaged by sender allowlist. The user already curates them in
+Superhuman using the Gmail label `news`. Trust the label.
+
+Run:
+
+```bash
+gbrain ingest:newsletters
+```
+
+This command:
+
+1. Queries Gmail with `label:news`
+2. Pulls matching messages through the existing Google credential setup
+3. Extracts the newsletter body (HTML → markdown, strips email chrome)
+4. Writes one source page per issue with frontmatter:
+   - `source`
+   - `date`
+   - `newsletter_name`
+   - `topics`
+   - `people`
+   - `companies`
+   - `products`
+   - `gmail_message_id`
+5. Imports those pages into the brain
+6. Adds graph links to existing brain pages when entity titles already exist
+7. Skips issues already ingested by Gmail message ID
+
+**Backfill**
+
+To backfill historical newsletters:
+
+```bash
+gbrain ingest:newsletters --backfill --days 30
+```
+
+That narrows the Gmail query to `label:news newer_than:30d`.
+
+**Runtime data locations**
+
+- Raw Gmail payloads: `~/.gbrain/newsletters/raw/`
+- Compiled markdown: `~/.gbrain/newsletters/compiled/`
+- Idempotency state: `~/.gbrain/newsletters/state.json`
+
+**Notes**
+
+- No sender allowlist is used in newsletter mode.
+- Cross-links are created from the newsletter issue page to existing brain pages
+  by exact title match after deterministic entity extraction.
+- `--compile-only` fetches + writes markdown without marking the issue as ingested.
+
 ### Step 3: Run First Collection
 
 ```bash
@@ -234,7 +294,7 @@ and run the enrichment flow from Step 4.
 
 ```bash
 mkdir -p ~/.gbrain/integrations/email-to-brain
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","event":"setup_complete","source_version":"0.7.0","status":"ok"}' >> ~/.gbrain/integrations/email-to-brain/heartbeat.jsonl
+echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","event":"setup_complete","source_version":"0.8.0","status":"ok"}' >> ~/.gbrain/integrations/email-to-brain/heartbeat.jsonl
 ```
 
 ## Implementation Guide
