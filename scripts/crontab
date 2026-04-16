@@ -1,0 +1,49 @@
+# kbrain autonomous brain — production cron schedule
+#
+# Install: crontab scripts/crontab
+# Verify:  crontab -l
+#
+# All shell-script jobs log to /tmp/. Notification jobs check quiet hours
+# (scripts/quiet-hours-gate.sh) and hold output to /tmp/cron-held/ during
+# 11 PM – 8 AM. The morning briefing picks up held files.
+#
+# Slots are staggered: max 1 job per 5-minute mark to avoid thundering herd.
+# Quiet window: 11 PM – 8 AM local time (US/Pacific default; reads HEARTBEAT.md
+# for travel-aware timezone overrides).
+
+REPO=/Users/kazukis/Workspace/kbrain
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin
+
+# ── Daily at 11 AM (staggered) ───────────────────────────────────────────────
+
+# Email monitoring (newsletters via label:news) — 11:03
+3 11 * * *  cd "$REPO" && bash scripts/quiet-hours-gate.sh || { mkdir -p /tmp/cron-held; exit 0; }; echo "[email] $(date)" >> /tmp/email-monitor.log 2>&1
+
+# X/Twitter bookmark collection — 11:08
+8 11 * * *  cd "$REPO" && bash scripts/quiet-hours-gate.sh || { mkdir -p /tmp/cron-held; exit 0; }; gbrain ingest:bookmarks >> /tmp/x-bookmarks.log 2>&1
+
+# Google Drive sync — 11:13
+13 11 * * *  cd "$REPO" && bash scripts/quiet-hours-gate.sh || { mkdir -p /tmp/cron-held; exit 0; }; node scripts/gdrive-sync.mjs >> /tmp/gdrive-sync.log 2>&1
+
+# Slack sync — 11:18
+18 11 * * *  cd "$REPO" && bash scripts/quiet-hours-gate.sh || { mkdir -p /tmp/cron-held; exit 0; }; node scripts/slack-sync.mjs >> /tmp/slack-sync.log 2>&1
+
+# Granola meeting sync — 11:23
+23 11 * * *  cd "$REPO" && bash scripts/quiet-hours-gate.sh || { mkdir -p /tmp/cron-held; exit 0; }; node scripts/granola-sync.mjs >> /tmp/granola-sync.log 2>&1
+
+# Morning briefing — daily 8:07 AM (picks up /tmp/cron-held/ overnight files)
+7 8 * * *  cd "$REPO" && echo "[briefing] $(date) — run skills/briefing/SKILL.md and fold in /tmp/cron-held/*.md" >> /tmp/morning-briefing.log 2>&1
+
+# ── Weekly ────────────────────────────────────────────────────────────────────
+
+# Calendar sync — Sundays 11:28 AM
+28 11 * * 0  cd "$REPO" && echo "[calendar-sync] $(date)" >> /tmp/calendar-sync.log 2>&1
+
+# Brain health — Mondays 11:33 AM
+33 11 * * 1  cd "$REPO" && gbrain doctor --json >> /tmp/gbrain-health.log 2>&1 && gbrain embed --stale >> /tmp/gbrain-health.log 2>&1
+
+# ── Nightly ───────────────────────────────────────────────────────────────────
+
+# Dream cycle — 2:02 AM every night
+2 2 * * *  cd "$REPO" && bash scripts/dream-cycle.sh
