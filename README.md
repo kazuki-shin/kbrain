@@ -170,6 +170,7 @@ GBrain ships integration recipes that your agent sets up for you. Each recipe te
 | [Voice-to-Brain](recipes/twilio-voice-brain.md) | ngrok-tunnel | Phone calls to brain pages (Twilio + OpenAI Realtime) |
 | [Email-to-Brain](recipes/email-to-brain.md) | credential-gateway | Gmail to entity pages |
 | [Slack-to-Brain](recipes/slack-to-brain.md) | credential-gateway | Slack channels, threads, and shared links to brain pages |
+| [Google Drive-to-Brain](recipes/gdrive-to-brain.md) | credential-gateway | Google Docs, Sheets, and Slides to searchable brain pages |
 | [X-to-Brain](recipes/x-to-brain.md) | — | Twitter timeline + mentions + deletions |
 | [Calendar-to-Brain](recipes/calendar-to-brain.md) | credential-gateway | Google Calendar to searchable daily pages |
 | [Meeting Sync](recipes/meeting-sync.md) | — | Circleback transcripts to brain pages with attendees |

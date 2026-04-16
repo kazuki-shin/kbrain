@@ -61,6 +61,7 @@ markdown files (tool-agnostic, work with both CLI and plugin contexts).
 - `src/schema.sql` — Full Postgres + pgvector DDL (source of truth, generates schema-embedded.ts)
 - `src/commands/ingest-bookmarks.ts` — `gbrain ingest:bookmarks` command: fetch, compile, and import X bookmarks into the brain
 - `src/commands/ingest-arxiv.ts` — `gbrain ingest:arxiv` command: fetch ArXiv metadata/PDFs, compile paper pages, and import into the brain
+- `scripts/gdrive-sync.mjs` — Google Drive sync: allowlist-based Docs/Sheets/Slides → brain pages (section-level splitting, multi-tab, Shared Drive support, OAuth loopback)
 - `src/bookmarks/compiler.ts` — Bookmark compiler: raw tweet/thread JSON → subject-first brain pages (markdown)
 - `src/bookmarks/pipeline.ts` — Bookmark pipeline: workspace resolution, URL list fetch, self-thread extraction via X browser session
 - `src/arxiv/` — ArXiv ingestion pipeline: API normalization/fetch, PDF text extraction, summary generation, markdown compiler
@@ -159,7 +160,8 @@ parity), `test/cli.test.ts` (CLI structure), `test/config.test.ts` (config redac
 `test/extract.test.ts` (link extraction, timeline extraction, frontmatter parsing, directory type inference),
 `test/features.test.ts` (feature scanning, brain_score calculation, CLI routing, persistence),
 `test/bookmarks-compiler.test.ts` (bookmark compiler: raw tweet/thread JSON → subject-first brain pages),
-`test/arxiv.test.ts` (ArXiv ID parsing, compiler output, deterministic summaries).
+`test/arxiv.test.ts` (ArXiv ID parsing, compiler output, deterministic summaries),
+`test/gdrive-sync.test.ts` (Google Drive sync: CSV→table, Docs API text, section splitting, date extraction, page builders, slide text extraction, idempotency hashing).
 
 E2E tests (`test/e2e/`): Run against real Postgres+pgvector. Require `DATABASE_URL`.
 - `bun run test:e2e` runs Tier 1 (mechanical, all operations, no API keys)
