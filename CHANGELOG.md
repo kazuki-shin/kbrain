@@ -2,6 +2,24 @@
 
 All notable changes to GBrain will be documented in this file.
 
+## [0.14.0] - 2026-04-15
+
+### Added
+
+- **Your brain now grows richer automatically.** Every page you import — via `gbrain import`, `gbrain sync`, or MCP `put_page` — is now scanned for person and company names. Stub pages are created instantly, backlinked to the source, and timestamped on a timeline. No extra commands. No manual enrichment. The brain populates itself.
+
+- **Autopilot runs enrichment as a first-class step.** After sync and extract, autopilot (step 2.5) re-reads every newly synced page and enriches the entities it finds. The brain gets smarter on every cycle, automatically.
+
+- **Two new MCP tools for agent-driven enrichment.** `enrich_entity` lets an agent explicitly create or update a person/company page with backlinks and timeline entries. `extract_entities` scans any text and auto-creates stubs for every entity found — useful when an agent processes external content and wants to seed the brain from it.
+
+- **`--no-enrich` flag for `gbrain import` and `gbrain sync`.** When you want to control exactly when enrichment runs — or suppress it for bulk imports — pass `--no-enrich` to skip the inline entity extraction step.
+
+### Changed
+
+- Enrichment entity extraction now runs over compiled content only (not raw frontmatter), eliminating false-positive entity stubs from YAML metadata fields.
+- Timeline entries written by enrichment now correctly use the `summary` field, preventing NULL rows in the timeline table.
+- Full sync (`gbrain sync --full`) correctly propagates `--no-enrich` to the underlying import, preserving the autopilot invariant that step 2.5 is the sole enrichment site.
+
 ## [0.13.0] - 2026-04-15
 
 ### Added

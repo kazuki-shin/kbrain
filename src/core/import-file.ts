@@ -32,7 +32,7 @@ export async function importFromContent(
   engine: BrainEngine,
   slug: string,
   content: string,
-  opts: { noEmbed?: boolean } = {},
+  opts: { noEmbed?: boolean; noEnrich?: boolean } = {},
 ): Promise<ImportResult> {
   // Reject oversized payloads before any parsing, chunking, or embedding happens.
   // Uses Buffer.byteLength to count UTF-8 bytes the same way disk size would,
@@ -123,6 +123,22 @@ export async function importFromContent(
     }
   });
 
+  // Post-write: extract entities and create stubs (best-effort, non-blocking)
+  // throttle: false — inline enrichment, not a batch background job.
+  // noEnrich: true skips this step; autopilot sync sets it so step 2.5 is the
+  // sole enrichment site and avoids duplicate timeline entries.
+  if (!opts.noEnrich) {
+    try {
+      const { extractAndEnrich } = await import('./enrichment-service.ts');
+      const enrichText = [parsed.compiled_truth, parsed.timeline].filter(Boolean).join('\n');
+      if (enrichText.trim()) {
+        await extractAndEnrich(engine, enrichText, slug, { throttle: false });
+      }
+    } catch (e) {
+      console.warn(`[gbrain] enrichment failed for ${slug}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   return { slug, status: 'imported', chunks: chunks.length };
 }
 
@@ -140,7 +156,7 @@ export async function importFromFile(
   engine: BrainEngine,
   filePath: string,
   relativePath: string,
-  opts: { noEmbed?: boolean } = {},
+  opts: { noEmbed?: boolean; noEnrich?: boolean } = {},
 ): Promise<ImportResult> {
   // Defense-in-depth: reject symlinks before reading content.
   const lstat = lstatSync(filePath);

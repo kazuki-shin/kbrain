@@ -24,6 +24,7 @@ export interface SyncOpts {
   full?: boolean;
   noPull?: boolean;
   noEmbed?: boolean;
+  noEnrich?: boolean;
   noExtract?: boolean;
 }
 
@@ -197,7 +198,7 @@ export async function performSync(engine: BrainEngine, opts: SyncOpts): Promise<
     // Reimport at new path (picks up content changes)
     const filePath = join(repoPath, to);
     if (existsSync(filePath)) {
-      const result = await importFile(engine, filePath, to, { noEmbed });
+      const result = await importFile(engine, filePath, to, { noEmbed, noEnrich: opts.noEnrich });
       if (result.status === 'imported') chunksCreated += result.chunks;
     }
     pagesAffected.push(newSlug);
@@ -210,7 +211,7 @@ export async function performSync(engine: BrainEngine, opts: SyncOpts): Promise<
       const filePath = join(repoPath, path);
       if (!existsSync(filePath)) continue;
       try {
-        const result = await importFile(engine, filePath, path, { noEmbed });
+        const result = await importFile(engine, filePath, path, { noEmbed, noEnrich: opts.noEnrich });
         if (result.status === 'imported') {
           chunksCreated += result.chunks;
           pagesAffected.push(result.slug);
@@ -288,6 +289,7 @@ async function performFullSync(
   const { runImport } = await import('./import.ts');
   const importArgs = [repoPath];
   if (opts.noEmbed) importArgs.push('--no-embed');
+  if (opts.noEnrich) importArgs.push('--no-enrich');
   await runImport(engine, importArgs);
 
   // Persist sync state so next sync is incremental (C1 fix: was missing)

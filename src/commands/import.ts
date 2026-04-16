@@ -19,6 +19,7 @@ function defaultWorkers(): number {
 
 export async function runImport(engine: BrainEngine, args: string[]) {
   const noEmbed = args.includes('--no-embed');
+  const noEnrich = args.includes('--no-enrich');
   const fresh = args.includes('--fresh');
   const jsonOutput = args.includes('--json');
   const workersIdx = args.indexOf('--workers');
@@ -30,7 +31,7 @@ export async function runImport(engine: BrainEngine, args: string[]) {
   const dir = args.find((a, i) => !a.startsWith('--') && !flagValues.has(i));
 
   if (!dir) {
-    console.error('Usage: gbrain import <dir> [--no-embed] [--workers N] [--fresh] [--json]');
+    console.error('Usage: gbrain import <dir> [--no-embed] [--no-enrich] [--workers N] [--fresh] [--json]');
     process.exit(1);
   }
 
@@ -82,7 +83,7 @@ export async function runImport(engine: BrainEngine, args: string[]) {
   async function processFile(eng: BrainEngine, filePath: string) {
     const relativePath = relative(dir, filePath);
     try {
-      const result = await importFile(eng, filePath, relativePath, { noEmbed });
+      const result = await importFile(eng, filePath, relativePath, { noEmbed, noEnrich });
       if (result.status === 'imported') {
         imported++;
         chunksCreated += result.chunks;
