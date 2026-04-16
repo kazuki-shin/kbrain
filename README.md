@@ -320,6 +320,7 @@ IMPORT
   gbrain export [--dir ./out/]          Export to markdown
   gbrain ingest:bookmarks [urls...]     Fetch X bookmarks, compile to markdown, import (alias: x:sync)
   gbrain ingest:arxiv [ids|urls...]     Fetch ArXiv papers, extract PDFs, compile, import
+  gbrain ingest:newsletters [opts]      Fetch labeled Gmail newsletters, compile, import
 
 FILES
   gbrain files list|upload|sync|verify  File storage operations
@@ -329,6 +330,10 @@ EMBEDDINGS
 
 LINKS + GRAPH
   gbrain link|unlink|backlinks|graph    Cross-reference management
+
+AUTOMATION
+  gbrain autopilot [--install]          Self-maintaining daemon: collect → sync → extract → enrich → embed
+  gbrain autopilot --no-collect         Sync-only mode (skip collector phase)
 
 ADMIN
   gbrain doctor [--json] [--fast]       Health checks (resolver, skills, DB, embeddings)

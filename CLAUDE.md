@@ -124,7 +124,7 @@ Key commands added in v0.11:
 
 ## Testing
 
-`bun test` runs all tests (35 unit test files + 5 E2E test files). Unit tests run
+`bun test` runs all tests (36 unit test files + 5 E2E test files). Unit tests run
 without a database. E2E tests skip gracefully when `DATABASE_URL` is not set.
 
 Unit tests: `test/markdown.test.ts` (frontmatter parsing), `test/chunkers/recursive.test.ts`
