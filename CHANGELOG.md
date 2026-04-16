@@ -2,6 +2,16 @@
 
 All notable changes to GBrain will be documented in this file.
 
+## [0.14.2] - 2026-04-15
+
+### Added
+
+- **Autopilot now pulls from every source, not just your git repo.** Each cycle starts with a new collector phase (Step 0) that runs all 6 ingest sources before syncing: Granola meeting notes, Google Drive docs, Slack messages, Gmail newsletters, X bookmarks, and ArXiv papers. Your brain grows on every tick — not just when you push files.
+
+- **Per-collector control via `~/.gbrain/collectors.json`.** Enable or disable any collector, pass extra args, and hot-reload the config without restarting the daemon. Granola, Google Drive, Slack, and newsletters default to enabled. Bookmarks and ArXiv default to disabled (they need explicit input — enable them once you have a URL list or paper IDs configured).
+
+- **`--no-collect` flag for sync-only mode.** If you want the old behavior — repo sync only, no collector phase — pass `--no-collect` and autopilot skips Step 0 entirely. Fully backward compatible.
+
 ## [0.14.1] - 2026-04-15
 
 ### Added

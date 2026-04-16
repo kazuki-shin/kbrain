@@ -2,6 +2,12 @@
 
 ## P0
 
+### Fix E2E mechanical test fixture isolation failure
+**What:** `test/e2e/mechanical.test.ts` — `list_pages type filter returns correct count` expects 3 people but gets 50; `delete_page removes page and others survive` expects 15 pages but gets 105; `fixture import creates correct page count` and `get_stats returns valid structure` fail similarly.
+**Why:** Fixture isolation broke in an earlier commit. The DB accumulates state across test runs (or across parallel test suites). Tests use shared DB schema with no per-test truncation/reset.
+**Fix:** Add a `beforeAll` / `afterEach` truncation or use separate schemas per test suite. Check if `mechanical.test.ts` needs its own DB setup/teardown that clears all tables before the fixture import.
+**Noticed:** On branch `kgo-596-autopilot-orchestrate-all-ingest-sources`. Pre-existing — not caused by KGO-596 changes.
+
 ### Fix pre-existing ingest:arxiv --help CLI test failure
 **What:** `test/cli.test.ts:133` — `ingest:arxiv --help` spawns the CLI but receives empty stdout instead of `Usage: gbrain ingest:arxiv`.
 **Why:** Noticed on branch `google-workspace-brain-sync`. Failure exists on master. The `--help` flag for the arxiv command likely doesn't print to stdout correctly.
