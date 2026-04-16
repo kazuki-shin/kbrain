@@ -318,6 +318,7 @@ IMPORT
   gbrain sync [--repo <path>]           Git-to-brain incremental sync
   gbrain export [--dir ./out/]          Export to markdown
   gbrain ingest:bookmarks [urls...]     Fetch X bookmarks, compile to markdown, import (alias: x:sync)
+  gbrain ingest:arxiv [ids|urls...]     Fetch ArXiv papers, extract PDFs, compile, import
 
 FILES
   gbrain files list|upload|sync|verify  File storage operations
