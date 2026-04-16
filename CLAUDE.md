@@ -34,7 +34,7 @@ markdown files (tool-agnostic, work with both CLI and plugin contexts).
 - `src/core/utils.ts` — Shared SQL utilities extracted from postgres-engine.ts
 - `src/core/db.ts` — Connection management, schema initialization
 - `src/commands/migrate-engine.ts` — Bidirectional engine migration (`gbrain migrate --to supabase/pglite`)
-- `src/core/import-file.ts` — importFromFile + importFromContent (chunk + embed + tags)
+- `src/core/import-file.ts` — importFromFile + importFromContent (chunk + embed + tags + auto-entity-enrichment); noEnrich flag suppresses enrichment for autopilot sync
 - `src/core/sync.ts` — Pure sync functions (manifest parsing, filtering, slug conversion)
 - `src/core/storage.ts` — Pluggable storage interface (S3, Supabase Storage, local)
 - `src/core/supabase-admin.ts` — Supabase admin API (project discovery, pgvector check)
@@ -53,7 +53,7 @@ markdown files (tool-agnostic, work with both CLI and plugin contexts).
 - `src/core/data-research.ts` — Recipe validation, field extraction (MRR/ARR regex), dedup, tracker parsing, HTML stripping
 - `src/commands/extract.ts` — `gbrain extract links|timeline|all`: batch link/timeline extraction from markdown
 - `src/commands/features.ts` — `gbrain features --json --auto-fix`: usage scan + feature adoption salesman
-- `src/commands/autopilot.ts` — `gbrain autopilot --install`: self-maintaining brain daemon (sync+extract+embed)
+- `src/commands/autopilot.ts` — `gbrain autopilot --install`: self-maintaining brain daemon (sync+extract+enrich(step 2.5)+embed)
 - `src/mcp/server.ts` — MCP stdio server (generated from operations)
 - `src/commands/auth.ts` — Standalone token management (create/list/revoke/test)
 - `src/commands/upgrade.ts` — Self-update CLI with post-upgrade feature discovery + features hook
@@ -130,7 +130,7 @@ without a database. E2E tests skip gracefully when `DATABASE_URL` is not set.
 Unit tests: `test/markdown.test.ts` (frontmatter parsing), `test/chunkers/recursive.test.ts`
 (chunking), `test/sync.test.ts` (sync logic), `test/parity.test.ts` (operations contract
 parity), `test/cli.test.ts` (CLI structure), `test/config.test.ts` (config redaction),
-`test/files.test.ts` (MIME/hash), `test/import-file.test.ts` (import pipeline),
+`test/files.test.ts` (MIME/hash), `test/import-file.test.ts` (import pipeline + enrichment wiring),
 `test/upgrade.test.ts` (schema migrations), `test/doctor.test.ts` (doctor command),
 `test/file-migration.test.ts` (file migration), `test/file-resolver.test.ts` (file resolution),
 `test/import-resume.test.ts` (import checkpoints), `test/migrate.test.ts` (migration),
