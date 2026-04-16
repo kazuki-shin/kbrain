@@ -2,6 +2,16 @@
 
 All notable changes to GBrain will be documented in this file.
 
+## [0.14.1] - 2026-04-15
+
+### Added
+
+- **The brain now maintains itself on a schedule.** Three new scripts wire up the autonomous maintenance loop: `scripts/quiet-hours-gate.sh` blocks notifications during 11 PM–8 AM (travel-aware via HEARTBEAT.md), `scripts/dream-cycle.sh` runs nightly entity enrichment + citation hygiene + embedding, and `scripts/crontab` is a ready-to-install crontab covering all 9 recurring jobs. Run `crontab scripts/crontab` on any machine and the brain starts self-maintaining.
+
+- **Dream cycle runs while you sleep.** Nightly at 2 AM: entity sweep (enrich stale pages), citation hygiene (gbrain doctor), memory consolidation (sync + embed --stale), and a timestamped report saved to `reports/dream-cycle/`. Wake up to a smarter brain.
+
+- **Quiet hours gate on every notification job.** No more 3 AM pings. Every cron job that sends notifications checks the gate first. During quiet hours, output is held in `/tmp/cron-held/` and picked up by the morning briefing.
+
 ## [0.14.0] - 2026-04-15
 
 ### Added
