@@ -53,7 +53,7 @@ markdown files (tool-agnostic, work with both CLI and plugin contexts).
 - `src/core/data-research.ts` — Recipe validation, field extraction (MRR/ARR regex), dedup, tracker parsing, HTML stripping
 - `src/commands/extract.ts` — `gbrain extract links|timeline|all`: batch link/timeline extraction from markdown
 - `src/commands/features.ts` — `gbrain features --json --auto-fix`: usage scan + feature adoption salesman
-- `src/commands/autopilot.ts` — `gbrain autopilot --install`: self-maintaining brain daemon (sync+extract+enrich(step 2.5)+embed)
+- `src/commands/autopilot.ts` — `gbrain autopilot --install`: self-maintaining brain daemon (collect→sync→extract→enrich(step 2.5)→embed); collector config at `~/.gbrain/collectors.json`
 - `src/mcp/server.ts` — MCP stdio server (generated from operations)
 - `src/commands/auth.ts` — Standalone token management (create/list/revoke/test)
 - `src/commands/upgrade.ts` — Self-update CLI with post-upgrade feature discovery + features hook
@@ -124,7 +124,7 @@ Key commands added in v0.11:
 
 ## Testing
 
-`bun test` runs all tests (35 unit test files + 5 E2E test files). Unit tests run
+`bun test` runs all tests (36 unit test files + 5 E2E test files). Unit tests run
 without a database. E2E tests skip gracefully when `DATABASE_URL` is not set.
 
 Unit tests: `test/markdown.test.ts` (frontmatter parsing), `test/chunkers/recursive.test.ts`
@@ -159,7 +159,8 @@ parity), `test/cli.test.ts` (CLI structure), `test/config.test.ts` (config redac
 `test/extract.test.ts` (link extraction, timeline extraction, frontmatter parsing, directory type inference),
 `test/features.test.ts` (feature scanning, brain_score calculation, CLI routing, persistence),
 `test/bookmarks-compiler.test.ts` (bookmark compiler: raw tweet/thread JSON → subject-first brain pages),
-`test/arxiv.test.ts` (ArXiv ID parsing, compiler output, deterministic summaries).
+`test/arxiv.test.ts` (ArXiv ID parsing, compiler output, deterministic summaries),
+`test/autopilot.test.ts` (collector config loading, script path resolution, shell escaping, collector defaults).
 
 E2E tests (`test/e2e/`): Run against real Postgres+pgvector. Require `DATABASE_URL`.
 - `bun run test:e2e` runs Tier 1 (mechanical, all operations, no API keys)
