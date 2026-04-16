@@ -1,20 +1,143 @@
 /**
  * gbrain autopilot — Self-maintaining brain daemon.
  *
- * Runs: sync → extract → embed → backlinks fix in a continuous loop.
+ * Runs: collect → sync → extract → enrich → embed → health check in a continuous loop.
+ * Collectors: granola, gdrive, slack (script-based); newsletters, bookmarks, arxiv (engine-based).
  * Health-based adaptive scheduling. Best-effort per step.
  *
  * Usage:
- *   gbrain autopilot [--repo <path>] [--interval N] [--json]
+ *   gbrain autopilot [--repo <path>] [--interval N] [--json] [--no-collect]
  *   gbrain autopilot --install [--repo <path>]
  *   gbrain autopilot --uninstall
  *   gbrain autopilot --status [--json]
+ *
+ * Collector config: ~/.gbrain/collectors.json
+ *   { "granola": { "enabled": true }, "slack": { "enabled": false }, ... }
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { execSync } from 'child_process';
 import type { BrainEngine } from '../core/engine.ts';
+
+// --- Collector config ---
+
+interface CollectorConfig {
+  enabled: boolean;
+  args?: string[];
+}
+
+interface CollectorsConfig {
+  granola?: CollectorConfig;
+  gdrive?: CollectorConfig;
+  slack?: CollectorConfig;
+  newsletters?: CollectorConfig;
+  bookmarks?: CollectorConfig;
+  arxiv?: CollectorConfig;
+}
+
+function loadCollectorsConfig(): CollectorsConfig {
+  const configPath = join(process.env.HOME || '', '.gbrain', 'collectors.json');
+  try {
+    return JSON.parse(readFileSync(configPath, 'utf-8')) as CollectorsConfig;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Resolve the scripts directory.
+ * Priority: KBRAIN_SCRIPTS_DIR env → <binary_dir>/../scripts → cwd/scripts
+ */
+function resolveScriptsDir(): string {
+  if (process.env.KBRAIN_SCRIPTS_DIR) return process.env.KBRAIN_SCRIPTS_DIR;
+  const binDir = dirname(process.execPath);
+  const binRelative = join(binDir, '..', 'scripts');
+  if (existsSync(binRelative)) return binRelative;
+  const cwdScripts = join(process.cwd(), 'scripts');
+  if (existsSync(cwdScripts)) return cwdScripts;
+  return binRelative; // best-effort fallback
+}
+
+/** Shell-escape a single argument for use inside single-quoted strings. */
+function shEsc(s: string): string {
+  return s.replace(/'/g, "'\\''");
+}
+
+async function runCollectors(engine: BrainEngine, repoPath: string, config: CollectorsConfig) {
+  const scriptsDir = resolveScriptsDir();
+
+  // Script-based collectors: write markdown to brain repo dir, sync picks them up
+  const scriptCollectors: Array<{ name: keyof CollectorsConfig; script: string; defaultEnabled: boolean }> = [
+    { name: 'granola', script: 'granola-sync.mjs', defaultEnabled: true },
+    { name: 'gdrive',  script: 'gdrive-sync.mjs',  defaultEnabled: true },
+    { name: 'slack',   script: 'slack-sync.mjs',   defaultEnabled: true },
+  ];
+
+  for (const { name, script, defaultEnabled } of scriptCollectors) {
+    const cfg: CollectorConfig = config[name] ?? { enabled: defaultEnabled };
+    if (!cfg.enabled) continue;
+
+    const scriptPath = join(scriptsDir, script);
+    if (!existsSync(scriptPath)) {
+      console.log(`[collect:${name}] script not found at ${scriptPath}, skipping`);
+      continue;
+    }
+
+    try {
+      const extraArgs = (cfg.args ?? []).map(a => ` '${shEsc(a)}'`).join('');
+      const cmd = `node '${shEsc(scriptPath)}' --brain-dir '${shEsc(repoPath)}'${extraArgs}`;
+      const result = execSync(cmd, { timeout: 120_000, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'] });
+      if (result?.trim()) {
+        const lastLine = result.trim().split('\n').pop() ?? '';
+        console.log(`[collect:${name}] ${lastLine}`);
+      } else {
+        console.log(`[collect:${name}] done`);
+      }
+    } catch (e) {
+      logError(`collect:${name}`, e);
+    }
+  }
+
+  // Engine-based collectors: import directly into the brain DB
+  // Pass --no-embed — autopilot's embed step handles stale embeddings
+
+  // newsletters: default enabled (headless, needs only Gmail tokens)
+  const newslettersCfg: CollectorConfig = config.newsletters ?? { enabled: true };
+  if (newslettersCfg.enabled) {
+    try {
+      const { runIngestNewsletters } = await import('./ingest-newsletters.ts');
+      await runIngestNewsletters(engine, ['--no-embed', ...(newslettersCfg.args ?? [])]);
+      console.log('[collect:newsletters] done');
+    } catch (e) {
+      logError('collect:newsletters', e);
+    }
+  }
+
+  // bookmarks: default disabled (requires Playwright browser session + URL list)
+  const bookmarksCfg: CollectorConfig = config.bookmarks ?? { enabled: false };
+  if (bookmarksCfg.enabled) {
+    try {
+      const { runIngestBookmarks } = await import('./ingest-bookmarks.ts');
+      await runIngestBookmarks(engine, ['--no-embed', ...(bookmarksCfg.args ?? [])]);
+      console.log('[collect:bookmarks] done');
+    } catch (e) {
+      logError('collect:bookmarks', e);
+    }
+  }
+
+  // arxiv: default disabled (requires explicit paper IDs/URLs to be configured)
+  const arxivCfg: CollectorConfig = config.arxiv ?? { enabled: false };
+  if (arxivCfg.enabled) {
+    try {
+      const { runIngestArxiv } = await import('./ingest-arxiv.ts');
+      await runIngestArxiv(engine, ['--no-embed', ...(arxivCfg.args ?? [])]);
+      console.log('[collect:arxiv] done');
+    } catch (e) {
+      logError('collect:arxiv', e);
+    }
+  }
+}
 
 function parseArg(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -35,7 +158,25 @@ function logError(phase: string, e: unknown) {
 
 export async function runAutopilot(engine: BrainEngine, args: string[]) {
   if (args.includes('--help') || args.includes('-h')) {
-    console.log('Usage: gbrain autopilot [--repo <path>] [--interval N] [--json]\n       gbrain autopilot --install [--repo <path>]\n       gbrain autopilot --uninstall\n       gbrain autopilot --status [--json]\n\nSelf-maintaining brain daemon. Runs sync + extract + embed + backlinks in a loop.');
+    console.log(`Usage: gbrain autopilot [--repo <path>] [--interval N] [--json] [--no-collect]
+       gbrain autopilot --install [--repo <path>]
+       gbrain autopilot --uninstall
+       gbrain autopilot --status [--json]
+
+Self-maintaining brain daemon. Each cycle:
+  0. Run collectors: granola, gdrive, slack, newsletters (+ bookmarks/arxiv if configured)
+  1. Sync git repo
+  2. Extract links & timeline
+  2.5. Enrich entities from synced pages
+  3. Embed stale pages
+  4. Health check + adaptive interval
+
+Collector config: ~/.gbrain/collectors.json
+  { "granola": { "enabled": true }, "slack": { "enabled": false, "args": ["--days","3"] }, ... }
+  Bookmarks/arxiv default to disabled — enable and pass args (e.g. --input or --ids-from).
+
+Flags:
+  --no-collect   Skip collector phase (sync-only mode)`);
     return;
   }
 
@@ -55,6 +196,7 @@ export async function runAutopilot(engine: BrainEngine, args: string[]) {
   const repoPath = parseArg(args, '--repo') || await engine.getConfig('sync.repo_path');
   const baseInterval = parseInt(parseArg(args, '--interval') || '300', 10);
   const jsonMode = args.includes('--json');
+  const noCollect = args.includes('--no-collect');
 
   if (!repoPath) {
     console.error('No repo path. Use --repo or run gbrain sync --repo first.');
@@ -77,7 +219,7 @@ export async function runAutopilot(engine: BrainEngine, args: string[]) {
     writeFileSync(lockPath, String(process.pid));
   } catch { /* best-effort */ }
 
-  console.log(`Autopilot starting. Repo: ${repoPath}, interval: ${baseInterval}s`);
+  console.log(`Autopilot starting. Repo: ${repoPath}, interval: ${baseInterval}s${noCollect ? ', collect: disabled' : ''}`);
 
   // Signal handling + lock cleanup
   let stopping = false;
@@ -100,6 +242,14 @@ export async function runAutopilot(engine: BrainEngine, args: string[]) {
         await engine.disconnect();
         await (engine as any).connect?.();
       } catch (e) { logError('reconnect', e); }
+    }
+
+    // 0. Collectors (granola, gdrive, slack, newsletters, bookmarks, arxiv)
+    if (!noCollect) {
+      const collectorsConfig = loadCollectorsConfig();
+      try {
+        await runCollectors(engine, repoPath, collectorsConfig);
+      } catch (e) { logError('collectors', e); cycleOk = false; }
     }
 
     // 1. Sync
