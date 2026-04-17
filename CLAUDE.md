@@ -51,10 +51,10 @@ markdown files (tool-agnostic, work with both CLI and plugin contexts).
 - `src/core/transcription.ts` — Audio transcription: Groq Whisper (default), OpenAI fallback, ffmpeg segmentation for >25MB
 - `src/core/enrichment-service.ts` — Global enrichment service: entity slug generation, tier auto-escalation, batch throttling
 - `src/core/data-research.ts` — Recipe validation, field extraction (MRR/ARR regex), dedup, tracker parsing, HTML stripping
-- `src/commands/extract.ts` — `gbrain extract links|timeline|all`: batch link/timeline extraction from markdown; supports Obsidian wiki-links (`[[Page Name|alias]]`) via `buildNameToSlugMap` + `extractWikiLinks`; extracts timeline entries from frontmatter `date:` for meeting/gdocs pages via `extractTimelineFromFrontmatter`
+- `src/commands/extract.ts` — `gbrain extract links|timeline|all`: batch link/timeline extraction from markdown; supports Obsidian wiki-links (`[[Page Name|alias]]`) via `buildNameToSlugMap` + `extractWikiLinks`; extracts timeline entries from frontmatter `date:` for meeting/gdocs pages via `extractTimelineFromFrontmatter`; auto-creates stub entity pages for frontmatter link targets missing from DB (prevents silent addLink no-ops)
 - `src/commands/features.ts` — `gbrain features --json --auto-fix`: usage scan + feature adoption salesman
-- `src/commands/autopilot.ts` — `gbrain autopilot --install`: self-maintaining brain daemon (collect→sync→extract→enrich(step 2.5)→compile(step 2.7)→embed); collector config at `~/.gbrain/collectors.json`
-- `src/commands/compile.ts` — `gbrain compile --repo <path>`: writes frontmatter-inferred DB links back to vault pages as `[[wikilinks]]` in a managed `## Connections` section; idempotent via `<!-- gbrain:compile:start/end -->` markers; supports `--dry-run`, `--verbose`, and slug-filter for autopilot incremental mode
+- `src/commands/autopilot.ts` — `gbrain autopilot --install`: self-maintaining brain daemon (collect→sync→extract→enrich(step 2.5)→compile(step 2.7)→embed); collector config at `~/.gbrain/collectors.json`; SIGTERM/SIGINT triggers clean shutdown (flushes PGLite WAL via `engine.disconnect()` before exit)
+- `src/commands/compile.ts` — `gbrain compile --repo <path>`: writes frontmatter-inferred DB links back to vault pages as `[[wikilinks]]` in a managed `## Connections` section; idempotent via `<!-- gbrain:compile:start/end -->` markers; supports `--dry-run` and `--verbose`; scans all pages (no default limit)
 - `src/mcp/server.ts` — MCP stdio server (generated from operations)
 - `src/commands/auth.ts` — Standalone token management (create/list/revoke/test)
 - `src/commands/upgrade.ts` — Self-update CLI with post-upgrade feature discovery + features hook
@@ -157,7 +157,7 @@ parity), `test/cli.test.ts` (CLI structure), `test/config.test.ts` (config redac
 `test/transcription.test.ts` (provider detection, format validation, API key errors),
 `test/enrichment-service.test.ts` (entity slugification, extraction, tier escalation),
 `test/data-research.test.ts` (recipe validation, MRR/ARR extraction, dedup, tracker parsing, HTML stripping),
-`test/extract.test.ts` (link extraction, wiki-link resolution, timeline extraction, frontmatter-date timeline, attendee object links, directory type inference),
+`test/extract.test.ts` (link extraction, wiki-link resolution, timeline extraction, frontmatter-date timeline, attendee object links, directory type inference, stub page creation for missing frontmatter link targets),
 `test/features.test.ts` (feature scanning, brain_score calculation, CLI routing, persistence),
 `test/bookmarks-compiler.test.ts` (bookmark compiler: raw tweet/thread JSON → subject-first brain pages),
 `test/arxiv.test.ts` (ArXiv ID parsing, compiler output, deterministic summaries),
