@@ -8,6 +8,12 @@
 **Fix:** Add a `beforeAll` / `afterEach` truncation or use separate schemas per test suite. Check if `mechanical.test.ts` needs its own DB setup/teardown that clears all tables before the fixture import.
 **Noticed:** On branch `kgo-596-autopilot-orchestrate-all-ingest-sources`. Pre-existing — not caused by KGO-596 changes.
 
+### Fix pre-existing `init --non-interactive without URL fails gracefully` test
+**What:** `test/e2e/mechanical.test.ts` — `init --non-interactive without URL fails gracefully` expects non-zero exit code but gets 0.
+**Why:** PGLite is now the default engine so `init --non-interactive` succeeds without a DATABASE_URL. The test was written when Postgres was required. Pre-existing on master.
+**Fix:** Update the test to either: (a) expect exit code 0 and verify PGLite was initialized, or (b) use `--engine postgres` flag to test the Postgres path specifically.
+**Noticed:** On branch `fix/autopilot-compile-pipeline`. Pre-existing — not caused by our changes.
+
 ### Fix pre-existing ingest:arxiv --help CLI test failure
 **What:** `test/cli.test.ts:133` — `ingest:arxiv --help` spawns the CLI but receives empty stdout instead of `Usage: gbrain ingest:arxiv`.
 **Why:** Noticed on branch `google-workspace-brain-sync`. Failure exists on master. The `--help` flag for the arxiv command likely doesn't print to stdout correctly.
