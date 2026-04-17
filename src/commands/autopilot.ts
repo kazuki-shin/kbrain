@@ -284,6 +284,14 @@ Flags:
       }
     } catch (e) { logError('enrich', e); cycleOk = false; }
 
+    // 2.7. Compile: write frontmatter-inferred links back to vault as [[wikilinks]]
+    if (syncedSlugs.length > 0) {
+      try {
+        const { runCompile } = await import('./compile.ts');
+        await runCompile(engine, ['--repo', repoPath], syncedSlugs);
+      } catch (e) { logError('compile', e); cycleOk = false; }
+    }
+
     // 3. Embed stale
     try {
       const { runEmbed } = await import('./embed.ts');
