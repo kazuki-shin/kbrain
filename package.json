@@ -21,7 +21,17 @@
     "test": "bun test",
     "test:e2e": "bun test test/e2e/",
     "prepublish:clawhub": "bun run build:all",
-    "publish:clawhub": "clawhub package publish . --family bundle-plugin"
+    "publish:clawhub": "clawhub package publish . --family bundle-plugin",
+    "scraper:auth:x": "node scraper/scripts/login-x.mjs",
+    "scraper:fetch:tweet": "node scraper/scripts/fetch-x-tweet.mjs",
+    "scraper:fetch:url-list": "node scraper/scripts/fetch-x-url-list.mjs",
+    "scraper:extract:self-threads": "node scraper/scripts/extract-self-threads.mjs",
+    "scraper:build:vault": "node scraper/scripts/build-vault.mjs",
+    "scraper:refresh:cluster": "node scraper/scripts/refresh-cluster.mjs",
+    "scraper:fetch:bookmarks": "node scraper/scripts/fetch-x-bookmarks.mjs",
+    "scraper:build:bookmarks": "node scraper/scripts/build-bookmarks-vault.mjs",
+    "scraper:sync:bookmarks": "node scraper/scripts/fetch-x-bookmarks.mjs && node scraper/scripts/build-bookmarks-vault.mjs",
+    "brain:sync": "bun run dev -- import ~/Documents/kbrain/ && bun run dev -- embed --stale"
   },
   "openclaw": {
     "compat": {
