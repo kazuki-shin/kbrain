@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'bun:test';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import {
   extractMarkdownLinks,
   extractWikiLinks,
@@ -7,6 +10,7 @@ import {
   extractTimelineFromContent,
   extractTimelineFromFrontmatter,
   walkMarkdownFiles,
+  runExtract,
 } from '../src/commands/extract.ts';
 
 describe('extractMarkdownLinks', () => {
@@ -253,5 +257,129 @@ describe('extractTimelineFromFrontmatter', () => {
     const content = '---\ntitle: "Board Meeting Notes"\ndate: 2026-02-01\n---\nBody.';
     const entries = extractTimelineFromFrontmatter(content, 'gdocs/board-meeting-notes');
     expect(entries).toHaveLength(1);
+  });
+});
+
+describe('extractLinksFromDir: stub page creation for frontmatter targets', () => {
+  let tmpDir: string;
+
+  it('auto-creates a stub page for a frontmatter link target missing from DB, then stores the link', async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'gbrain-extract-stub-'));
+    try {
+      // Create meetings/ subdirectory with a meeting that references people/kazuki
+      mkdirSync(join(tmpDir, 'meetings'));
+      writeFileSync(join(tmpDir, 'meetings', 'test-meeting.md'), [
+        '---',
+        'type: meeting',
+        'date: 2026-01-15',
+        'title: Test Meeting',
+        'attendees: [kazuki]',
+        '---',
+        'Body.',
+      ].join('\n'));
+
+      // Mock engine: meeting page is in DB, people/kazuki is NOT
+      const putPageCalls: Array<{ slug: string; type: string }> = [];
+      const addLinkCalls: Array<{ from: string; to: string; context: string | undefined }> = [];
+
+      const mockEngine = {
+        listPages: async () => [{ slug: 'meetings/test-meeting', title: 'Test Meeting', type: 'meeting' }],
+        getLinks: async () => [],
+        putPage: async (slug: string, page: { type: string }) => {
+          putPageCalls.push({ slug, type: page.type });
+        },
+        addLink: async (from: string, to: string, context?: string) => {
+          addLinkCalls.push({ from, to, context });
+        },
+        // Satisfy BrainEngine interface minimally
+        connect: async () => {},
+        disconnect: async () => {},
+        getPage: async () => null,
+        deletePage: async () => {},
+        searchPages: async () => [],
+        getTimeline: async () => [],
+        addTimelineEntry: async () => {},
+        deleteTimeline: async () => {},
+        listConnections: async () => [],
+        countPages: async () => 0,
+        getConfig: async () => ({}),
+        setConfig: async () => {},
+        listChunks: async () => [],
+        upsertChunk: async () => {},
+        deleteChunks: async () => {},
+        searchChunks: async () => [],
+        getStats: async () => ({}),
+        runSQL: async () => [],
+        vacuum: async () => {},
+      };
+
+      await runExtract(mockEngine as any, ['links', '--dir', tmpDir]);
+
+      // putPage should have been called to create the stub for people/kazuki
+      const kazukiStub = putPageCalls.find(c => c.slug === 'people/kazuki');
+      expect(kazukiStub).toBeDefined();
+      expect(kazukiStub?.type).toBe('person');
+
+      // addLink should have been called to store the attendee link
+      const attendeeLink = addLinkCalls.find(c => c.to === 'people/kazuki');
+      expect(attendeeLink).toBeDefined();
+      expect(attendeeLink?.from).toBe('meetings/test-meeting');
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('skips stub creation when target page already exists in DB', async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'gbrain-extract-stub-'));
+    try {
+      mkdirSync(join(tmpDir, 'meetings'));
+      writeFileSync(join(tmpDir, 'meetings', 'test-meeting.md'), [
+        '---',
+        'type: meeting',
+        'date: 2026-01-15',
+        'title: Test Meeting',
+        'attendees: [kazuki]',
+        '---',
+        'Body.',
+      ].join('\n'));
+
+      const putPageCalls: string[] = [];
+      const mockEngine = {
+        // people/kazuki already in DB
+        listPages: async () => [
+          { slug: 'meetings/test-meeting', title: 'Test Meeting', type: 'meeting' },
+          { slug: 'people/kazuki', title: 'kazuki', type: 'person' },
+        ],
+        getLinks: async () => [],
+        putPage: async (slug: string) => { putPageCalls.push(slug); },
+        addLink: async () => {},
+        connect: async () => {},
+        disconnect: async () => {},
+        getPage: async () => null,
+        deletePage: async () => {},
+        searchPages: async () => [],
+        getTimeline: async () => [],
+        addTimelineEntry: async () => {},
+        deleteTimeline: async () => {},
+        listConnections: async () => [],
+        countPages: async () => 0,
+        getConfig: async () => ({}),
+        setConfig: async () => {},
+        listChunks: async () => [],
+        upsertChunk: async () => {},
+        deleteChunks: async () => {},
+        searchChunks: async () => [],
+        getStats: async () => ({}),
+        runSQL: async () => [],
+        vacuum: async () => {},
+      };
+
+      await runExtract(mockEngine as any, ['links', '--dir', tmpDir]);
+
+      // putPage should NOT have been called since people/kazuki is already in DB
+      expect(putPageCalls).not.toContain('people/kazuki');
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });

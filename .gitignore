@@ -13,3 +13,5 @@ bin/
 supabase/.temp/
 .claude/skills/
 .idea
+scraper/playwright/.auth/
+scraper/raw/

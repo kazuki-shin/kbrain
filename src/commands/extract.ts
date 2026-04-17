@@ -10,6 +10,7 @@
 import { readFileSync, readdirSync, lstatSync, existsSync } from 'fs';
 import { join, relative, dirname } from 'path';
 import type { BrainEngine } from '../core/engine.ts';
+import type { PageType } from '../core/types.ts';
 import { parseMarkdown } from '../core/markdown.ts';
 
 // --- Types ---
@@ -325,9 +326,12 @@ async function extractLinksFromDir(
 
   // Load existing links for O(1) dedup
   const existing = new Set<string>();
+  // Track DB page slugs to know when stub creation is needed for frontmatter targets
+  const dbSlugs = new Set<string>();
   try {
     const pages = await engine.listPages({ limit: 100000 });
     for (const page of pages) {
+      dbSlugs.add(page.slug);
       for (const link of await engine.getLinks(page.slug)) {
         existing.add(`${link.from_slug}::${link.to_slug}`);
       }
@@ -348,6 +352,21 @@ async function extractLinksFromDir(
           created++;
         } else {
           try {
+            // For frontmatter links, auto-create a stub target page if it doesn't exist.
+            // This enables compile to write [[wikilinks]] back even before enrichment
+            // creates a full entity page (e.g. people/kazuki from meeting attendees).
+            if (link.context?.startsWith('frontmatter') && !dbSlugs.has(link.to_slug)) {
+              const targetDir = link.to_slug.split('/')[0]; // 'people', 'companies', etc.
+              const targetName = link.to_slug.split('/').slice(1).join('/').replace(/-/g, ' ');
+              const type: PageType = targetDir === 'people' ? 'person' : targetDir === 'companies' ? 'company' : 'concept';
+              await engine.putPage(link.to_slug, {
+                title: targetName,
+                type,
+                compiled_truth: `# ${targetName}\n`,
+                timeline: '',
+              });
+              dbSlugs.add(link.to_slug);
+            }
             await engine.addLink(link.from_slug, link.to_slug, link.context, link.link_type);
             created++;
           } catch { /* UNIQUE or page not found */ }

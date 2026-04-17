@@ -2,6 +2,14 @@
 
 All notable changes to GBrain will be documented in this file.
 
+## [0.14.5] - 2026-04-16
+
+### Fixed
+
+- **Your Obsidian graph now actually shows meeting connections.** The compile pipeline had four compounding bugs that silently prevented `[[wikilinks]]` from appearing for meeting attendees and other frontmatter-linked entities. Now: (1) entity stub pages are auto-created when a frontmatter link target doesn't exist in the DB yet — `addLink` was a silent no-op before this; (2) compile scans all pages instead of only the 100 most recently updated; (3) compile runs every autopilot cycle instead of only when pages were synced in the current tick; (4) autopilot shuts down cleanly on SIGTERM, flushing the PGLite WAL instead of corrupting it. The net result: after the next autopilot cycle, your meeting attendee connections will appear in the Obsidian graph.
+
+- **Autopilot no longer corrupts the PGLite database on restart.** Killing autopilot mid-write left the WAL in a partially-written state, causing `Aborted()` WASM errors on next startup. SIGTERM now immediately wakes autopilot from its inter-cycle sleep and calls `engine.disconnect()` before exit — the WAL is fully flushed and the next startup is clean.
+
 ## [0.14.4] - 2026-04-15
 
 ### Added
