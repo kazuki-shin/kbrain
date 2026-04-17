@@ -223,10 +223,16 @@ Flags:
 
   // Signal handling + lock cleanup
   let stopping = false;
+  let wakeupResolve: (() => void) | null = null;
   const cleanup = () => { try { require('fs').unlinkSync(lockPath); } catch {} };
   process.on('exit', cleanup);
-  process.on('SIGTERM', () => { stopping = true; console.log('Autopilot stopping (SIGTERM).'); });
-  process.on('SIGINT', () => { stopping = true; console.log('Autopilot stopping (SIGINT).'); });
+  const handleStop = (sig: string) => {
+    stopping = true;
+    console.log(`Autopilot stopping (${sig}).`);
+    wakeupResolve?.(); // interrupt the inter-cycle sleep
+  };
+  process.on('SIGTERM', () => handleStop('SIGTERM'));
+  process.on('SIGINT', () => handleStop('SIGINT'));
 
   let consecutiveErrors = 0;
 
@@ -285,12 +291,15 @@ Flags:
     } catch (e) { logError('enrich', e); cycleOk = false; }
 
     // 2.7. Compile: write frontmatter-inferred links back to vault as [[wikilinks]]
-    if (syncedSlugs.length > 0) {
-      try {
-        const { runCompile } = await import('./compile.ts');
-        await runCompile(engine, ['--repo', repoPath], syncedSlugs);
-      } catch (e) { logError('compile', e); cycleOk = false; }
-    }
+    // Runs every cycle (not just when pages synced) because enrich may have created
+    // new entity pages on the prior cycle, making previously-missing links storable.
+    try {
+      const { runCompile } = await import('./compile.ts');
+      const compileResult = await runCompile(engine, ['--repo', repoPath]);
+      if (compileResult.pagesUpdated > 0 || compileResult.pagesCleared > 0) {
+        console.log(`[compile] ${compileResult.pagesUpdated} pages updated, ${compileResult.pagesCleared} cleared, ${compileResult.linksWritten} links written`);
+      }
+    } catch (e) { logError('compile', e); cycleOk = false; }
 
     // 3. Embed stale
     try {
@@ -326,9 +335,22 @@ Flags:
       }
     }
 
-    // Wait for next cycle
-    await new Promise(r => setTimeout(r, interval * 1000));
+    // Wait for next cycle (interruptible by SIGTERM/SIGINT)
+    if (!stopping) {
+      await Promise.race([
+        new Promise<void>(r => setTimeout(r, interval * 1000)),
+        new Promise<void>(r => { wakeupResolve = r; }),
+      ]);
+    }
   }
+
+  // Clean shutdown: flush PGLite WAL before exiting
+  try {
+    await engine.disconnect();
+    console.log('Autopilot stopped cleanly.');
+  } catch { /* best-effort */ }
+  cleanup();
+  process.exit(0);
 }
 
 // --- Install/Uninstall ---

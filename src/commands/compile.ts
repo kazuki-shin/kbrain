@@ -118,7 +118,7 @@ export async function runCompile(
   if (slugFilter && slugFilter.length > 0) {
     slugs = slugFilter;
   } else {
-    const pages = await engine.listPages();
+    const pages = await engine.listPages({ limit: 100000 });
     slugs = pages.map(p => p.slug);
   }
 
