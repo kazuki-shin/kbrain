@@ -2,6 +2,16 @@
 
 All notable changes to GBrain will be documented in this file.
 
+## [0.14.4] - 2026-04-15
+
+### Added
+
+- **The Obsidian graph now shows the relationships your brain already knows.** `gbrain compile` reads every frontmatter-inferred link from the DB (attendees, works_at, investors, deal_for) and writes them back to vault pages as `[[wikilinks]]` under a managed `## Connections` section. The section is fully regenerated each run — if you remove `company: brex` from frontmatter, the Brex link disappears on the next cycle. Content you write outside the managed markers is never touched. Open Obsidian after the next autopilot cycle and the graph will finally reflect what the brain actually knows.
+
+- **Autopilot now closes the vault loop automatically.** After enrichment (step 2.5), autopilot runs the compile step (step 2.7) on every page that changed in the current cycle. The result: each 150s tick not only enriches entities but also writes those relationships back to your vault. Your Obsidian graph stays in sync with the brain without any manual intervention.
+
+- **`gbrain compile` as a standalone command.** Run `gbrain compile --repo ~/Documents/kbrain` any time to do a full-vault compile pass. Useful after a bulk import or when you want to force a graph rebuild. `--dry-run` shows what would change without touching files. `--verbose` logs every page that's already up to date.
+
 ## [0.14.3] - 2026-04-15
 
 ### Added
