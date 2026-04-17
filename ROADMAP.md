@@ -133,9 +133,9 @@ Features to build in this fork that upstream GBrain doesn't have.
 - [ ] **`kbrain ingest:bookmarks`** — first-class command wrapping Playwright bookmark scraping.
       Generalizes the X scraper pattern so new source types plug in the same way.
 
-- [ ] **Obsidian write-back** — kbrain indexes Obsidian but doesn't write back today.
-      Build a mode where auto-enrichments (new links, entity pages, timeline entries)
-      get written as Obsidian-compatible markdown into vault/.
+- [x] **Obsidian write-back** — `gbrain compile` writes frontmatter-inferred links
+      (works_at, attendee, invested_in, deal_for) back to vault pages as `[[wikilinks]]`
+      in a managed `## Connections` section. Runs as autopilot step 2.7 on every cycle.
 
 - [ ] **Research mode** — ask a question, kbrain searches the KB, identifies gaps, goes
       to the web to fill them, files findings back into the brain. The killer feature
